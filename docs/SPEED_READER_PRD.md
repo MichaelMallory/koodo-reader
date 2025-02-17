@@ -121,13 +121,93 @@ The Speed Reader feature for Koodo Reader implements a cyberpunk-themed Rapid Se
   - Display words one at a time in a fixed position
   - Surround the word display with animated matrix-style falling code
   - Highlight the optimal recognition point (ORP) of each word
+  - Integrate ORP pointer within falling data streams
   - Support dark mode with cyberpunk color schemes
+  - Dynamic contextual imagery with tech-style transitions
+  - Content-aware background adaptations
 
 - **Technical Requirements**:
   - Efficient text extraction from EPUBs and PDFs
   - Pre-processing of content to optimize word display
   - Smooth animation system for matrix effect
+  - ORP calculation and highlighting system
   - Configurable visual themes
+  - Real-time image generation and transition system
+  - Content-to-image mapping algorithm
+
+#### ORP Integration Design
+```
+Visual Components
+├── ORP Pointer System
+│   ├── Dynamic Data Stream Formation
+│   │   ├── Converging Matrix Characters
+│   │   ├── Subtle Brightness Gradient
+│   │   ├── Flow Direction Indicators
+│   │   └── Density Pattern Recognition
+│   ├── Focus Point Enhancement
+│   │   ├── Implicit Arrow Formation
+│   │   ├── Negative Space Utilization
+│   │   ├── Color Temperature Variation
+│   │   └── Brightness Intensity Mapping
+│   └── Animation Patterns
+│       ├── Stream Convergence Timing
+│       ├── Character Fall Speed Adjustment
+│       ├── Opacity Modulation
+│       └── Pattern Synchronization
+└── Word Positioning
+    ├── ORP Alignment
+    │   ├── Character Position Calculation
+    │   ├── Word Length Compensation
+    │   ├── Font Metrics Analysis
+    │   └── Display Area Optimization
+    ├── Visual Guides
+    │   ├── Subtle Matrix Flow Patterns
+    │   ├── Character Density Distribution
+    │   ├── Brightness Gradient Maps
+    │   └── Motion Path Integration
+    └── Performance Optimization
+        ├── Animation Frame Management
+        ├── Render Layer Organization
+        ├── GPU Acceleration
+        └── Memory Usage Control
+```
+
+#### Matrix Animation Rules
+```
+Animation Guidelines
+├── Data Stream Behavior
+│   ├── Primary Streams
+│   │   ├── Converge Toward ORP
+│   │   ├── Speed Variation by Position
+│   │   ├── Density Gradient
+│   │   └── Color Intensity Mapping
+│   ├── Secondary Streams
+│   │   ├── Background Pattern Formation
+│   │   ├── Peripheral Movement
+│   │   ├── Ambient Effects
+│   │   └── Edge Behavior
+│   └── Interaction Zones
+│       ├── Focus Area Definition
+│       ├── Stream Collision Rules
+│       ├── Character Replacement Rate
+│       └── Pattern Emergence Control
+└── ORP Enhancement
+    ├── Pointer Formation
+    │   ├── Implicit Directional Cues
+    │   ├── Negative Space Definition
+    │   ├── Stream Convergence Points
+    │   └── Brightness Modulation
+    ├── Timing Synchronization
+    │   ├── Word Display Alignment
+    │   ├── Stream Flow Coordination
+    │   ├── Animation Phase Locking
+    │   └── Transition Management
+    └── Visual Balance
+        ├── Symmetry Maintenance
+        ├── Distraction Minimization
+        ├── Focus Point Clarity
+        └── Aesthetic Cohesion
+```
 
 ### 2. Speed Control System
 - **Core Functionality**:
@@ -135,11 +215,13 @@ The Speed Reader feature for Koodo Reader implements a cyberpunk-themed Rapid Se
   - Quick preset speeds (300, 500, 700 WPM)
   - Speed adjustment keyboard shortcuts
   - Automatic speed adjustment based on word length/complexity
+  - Subvocalization reduction training mode
 
 - **Technical Requirements**:
   - Real-time speed adjustment without stuttering
   - Word timing algorithm accounting for punctuation
   - Speed ramping for natural acceleration/deceleration
+  - Subvocalization detection and feedback system
 
 ### 3. Comprehension Testing
 - **Core Functionality**:
@@ -189,6 +271,8 @@ The Speed Reader feature for Koodo Reader implements a cyberpunk-themed Rapid Se
   - Content analysis
   - Cross-document reference
   - API endpoint exposure
+  - Pre-reading context generation
+  - Semantic image prompt generation
 
 - **Technical Requirements**:
   - RESTful API architecture
@@ -196,6 +280,8 @@ The Speed Reader feature for Koodo Reader implements a cyberpunk-themed Rapid Se
   - Document processing pipeline
   - Security and rate limiting
   - Caching system
+  - Image generation API integration
+  - Context extraction engine
 
 #### MCP Server Architecture
 ```
@@ -289,6 +375,199 @@ Export Formats
     └── Cross-References
 ```
 
+### 8. Social Sharing & Gamification
+- **Core Functionality**:
+  - One-click sharing of reading achievements
+  - Customizable achievement cards with cyberpunk themes
+  - Social media integration (Twitter, LinkedIn, Instagram)
+  - Global and friend leaderboards
+  - Achievement badges and milestones
+  - Reading challenges and competitions
+
+- **Technical Requirements**:
+  - Social media API integrations
+  - Achievement tracking system
+  - Dynamic image generation for share cards
+  - Real-time leaderboard updates
+  - Challenge management system
+
+#### Share Card Generation
+```
+Share Card Components
+├── Performance Metrics
+│   ├── WPM Score
+│   ├── Comprehension Rate
+│   ├── Reading Streak
+│   └── Achievement Badges
+├── Visual Elements
+│   ├── Cyberpunk Theme Options
+│   ├── Animated Elements
+│   ├── Custom Backgrounds
+│   └── Profile Integration
+└── Social Integration
+    ├── Platform-Specific Formats
+    ├── Deep Linking
+    └── Engagement Tracking
+```
+
+#### Achievement System
+```
+Achievements
+├── Speed Milestones
+│   ├── 300 WPM Club
+│   ├── 500 WPM Elite
+│   └── 1000 WPM Master
+├── Comprehension Badges
+│   ├── Perfect Score
+│   ├── Consistent Performer
+│   └── Knowledge Master
+├── Reading Streaks
+│   ├── Daily Reader
+│   ├── Week Warrior
+│   └── Month Master
+└── Special Achievements
+    ├── Genre Specialist
+    ├── Volume Champion
+    └── Community Leader
+```
+
+### 9. Training Mode
+- **Core Functionality**:
+  - Interactive tutorial on speed reading techniques
+  - Subvocalization awareness training
+  - Progressive speed training exercises
+  - Real-time feedback on reading habits
+  - Guided practice sessions
+
+- **Technical Requirements**:
+  - Tutorial system framework
+  - Progress tracking system
+  - Adaptive difficulty adjustment
+  - User feedback collection
+
+#### Training Modules
+```
+Training Program
+├── Fundamentals
+│   ├── Understanding Subvocalization
+│   ├── Techniques to Reduce Inner Voice
+│   ├── Eye Movement Optimization
+│   └── Concentration Exercises
+├── Progressive Training
+│   ├── Baseline Assessment
+│   ├── Gradual Speed Increases
+│   ├── Comprehension Checkpoints
+│   └── Technique Reinforcement
+├── Advanced Techniques
+│   ├── Chunk Reading
+│   ├── Pattern Recognition
+│   ├── Peripheral Vision Expansion
+│   └── Mental Focus Training
+└── Mastery Track
+    ├── Speed Plateaus Management
+    ├── Long-form Content Strategies
+    ├── Technical Content Techniques
+    └── Sustained Performance Tips
+```
+
+#### User Guidance
+```
+Training Tips
+├── Subvocalization Management
+│   ├── Recognition Methods
+│   │   ├── Identifying Inner Voice
+│   │   ├── Impact on Reading Speed
+│   │   └── Common Patterns
+│   ├── Reduction Techniques
+│   │   ├── Counting While Reading
+│   │   ├── Humming Exercises
+│   │   └── Focus Shifting
+│   └── Progress Tracking
+│       ├── Speed Improvements
+│       ├── Comprehension Balance
+│       └── Technique Mastery
+└── Practice Recommendations
+    ├── Daily Exercise Plans
+    ├── Content Difficulty Progression
+    └── Performance Monitoring
+```
+
+### 10. Visual Context Enhancement
+- **Core Functionality**:
+  - AI-generated contextual imagery
+  - Tech-styled image transitions
+  - Pre-reading context bullets
+  - Content type detection (fiction vs non-fiction)
+  - Dynamic visual theming
+  - Semantic scene generation
+
+- **Technical Requirements**:
+  - Image generation API integration (DALL-E/Stable Diffusion)
+  - Real-time image transition system
+  - Content analysis engine
+  - Theme management system
+  - Performance optimization for visual elements
+
+#### Visual Processing Pipeline
+```
+Content Analysis → Context Extraction → Image Generation → Visual Presentation
+        ↓                    ↓                  ↓                    ↓
+Text Scanning    →    Key Concepts     →    Scene Prompts    →   Transition Effects
+Theme Detection  →    Mood Analysis    →    Style Transfer   →   Background Adaptation
+Genre Analysis   →    Topic Mapping    →    Image Queuing    →   Fade Patterns
+Content Type     →    Context Bullets  →    Visual Cache     →   Performance Monitoring
+```
+
+#### Pre-Reading Context System
+```
+Context Generation
+├── Non-Fiction Processing
+│   ├── Key Points Extraction
+│   ├── Main Arguments Detection
+│   ├── Topic Hierarchy Generation
+│   └── Learning Objectives Identification
+├── Visual Enhancement
+│   ├── Concept Visualization
+│   ├── Data Representation
+│   ├── Process Illustrations
+│   └── Relationship Mapping
+├── Transition Effects
+│   ├── Matrix-style Dissolves
+│   ├── Data Stream Transitions
+│   ├── Glitch Effects
+│   └── Tech-themed Fades
+└── Performance Optimization
+    ├── Image Pre-generation
+    ├── Transition Caching
+    ├── Quality Scaling
+    └── Resource Management
+```
+
+#### Image Generation Rules
+```
+Content Guidelines
+├── Non-Fiction
+│   ├── Conceptual Representations
+│   ├── Abstract Visualizations
+│   ├── Technical Diagrams
+│   └── Thematic Imagery
+├── Transition Design
+│   ├── Digital Dissolve Effects
+│   ├── Matrix Code Integration
+│   ├── Tech Glitch Patterns
+│   └── Smooth Fade Systems
+├── Performance
+│   ├── Progressive Loading
+│   ├── Quality Optimization
+│   ├── Cache Management
+│   └── Resource Allocation
+└── Content Awareness
+    ├── Context Sensitivity
+    ├── Theme Consistency
+    ├── Brand Alignment
+    └── User Customization
+```
+
 ## Technical Considerations
 
 ### Performance Optimization
@@ -358,12 +637,25 @@ Export Formats
 - Comprehension rates at different speeds
 - User engagement time
 - Return rate to speed reader feature
+- Reduction in subvocalization (measured through user self-reporting and speed improvements)
+- Training module completion rates
 
 ### Technical Performance
 - Text processing time
 - Animation frame rate
 - Memory usage
 - Load time for different document sizes
+- Image generation latency
+- Transition smoothness metrics
+- Visual context relevance scores
+
+### Social Engagement
+- Number of achievements shared
+- Leaderboard participation rate
+- Challenge completion rate
+- Social media engagement
+- Community growth rate
+- User retention through social features
 
 ## Future Enhancements
 
