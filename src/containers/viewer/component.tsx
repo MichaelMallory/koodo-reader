@@ -20,7 +20,7 @@ import {
   ConfigService,
 } from "../../assets/lib/kookit-extra-browser.min";
 import * as Kookit from "../../assets/lib/kookit.min";
-import { Trans } from "react-i18next";
+import SpeedReader from "../../components/speedReader";
 declare var window: any;
 let lock = false; //prevent from clicking too fasts
 
@@ -333,22 +333,14 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
         <div
           className="html-viewer-page speed-reader-page"
           style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            height: "100vh",
-            fontSize: "24px",
-            color: "var(--reader-text-color)",
-            background: "var(--reader-background-color)",
             position: "fixed",
             top: 0,
             left: this.props.isNavLocked ? "310px" : "10px",
             right: "10px",
+            bottom: 0,
           }}
         >
-          <div>
-            <Trans>Speed Reader Mode - Coming Soon</Trans>
-          </div>
+          <SpeedReader />
         </div>
       );
     }

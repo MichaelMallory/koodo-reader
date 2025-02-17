@@ -6,6 +6,9 @@
   justify-content: center;
   align-items: center;
   text-align: center;
+  position: relative;
+  background-color: black;
+  overflow: hidden;
 }
 
 .speed-reader-container h1 {
