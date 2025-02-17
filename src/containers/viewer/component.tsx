@@ -20,6 +20,7 @@ import {
   ConfigService,
 } from "../../assets/lib/kookit-extra-browser.min";
 import * as Kookit from "../../assets/lib/kookit.min";
+import { Trans } from "react-i18next";
 declare var window: any;
 let lock = false; //prevent from clicking too fasts
 
@@ -115,6 +116,11 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
   };
   handleRenderBook = async () => {
     if (lock) return;
+    // Don't render the book if we're in speed reader mode
+    if (this.props.readerMode === "speed") {
+      this.props.handleReadingState(true);
+      return;
+    }
     let { key, path, format, name } = this.props.currentBook;
     this.props.handleHtmlBook(null);
     let doc = getIframeDoc();
@@ -321,6 +327,33 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
     });
   };
   render() {
+    // If in speed reader mode, only render the speed reader view
+    if (this.props.readerMode === "speed") {
+      return (
+        <div
+          className="html-viewer-page speed-reader-page"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100vh",
+            fontSize: "24px",
+            color: "var(--reader-text-color)",
+            background: "var(--reader-background-color)",
+            position: "fixed",
+            top: 0,
+            left: this.props.isNavLocked ? "310px" : "10px",
+            right: "10px",
+          }}
+        >
+          <div>
+            <Trans>Speed Reader Mode - Coming Soon</Trans>
+          </div>
+        </div>
+      );
+    }
+
+    // Original render code for other modes
     return (
       <>
         {this.props.htmlBook ? (
@@ -368,8 +401,6 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
             this.props.readerMode === "scroll" &&
             document.body.clientWidth >= 570
               ? {
-                  // marginLeft: this.state.pageOffset,
-                  // marginRight: this.state.pageOffset,
                   paddingLeft: "20px",
                   paddingRight: "15px",
                   left: this.state.pageOffset,

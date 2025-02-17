@@ -9,7 +9,6 @@ export const viewMode = [
     icon: "menu",
     mode: "list",
   },
-
   {
     name: "Cover",
     icon: "cover",

@@ -3,6 +3,7 @@ import "./viewMode.css";
 import { ViewModeProps, ViewModeState } from "./interface";
 import { ConfigService } from "../../assets/lib/kookit-extra-browser.min";
 import { viewMode } from "../../constants/viewMode";
+import { withRouter } from "react-router-dom";
 
 class ViewMode extends React.Component<ViewModeProps, ViewModeState> {
   constructor(props: ViewModeProps) {
@@ -11,7 +12,11 @@ class ViewMode extends React.Component<ViewModeProps, ViewModeState> {
   }
   handleChange = (mode: string) => {
     ConfigService.setReaderConfig("viewMode", mode);
-    this.props.handleFetchList();
+    if (mode === "speed") {
+      this.props.history.push("/manager/speed");
+    } else {
+      this.props.handleFetchList();
+    }
   };
   isElementInViewport = (element) => {
     const rect = element.getBoundingClientRect();
@@ -49,4 +54,4 @@ class ViewMode extends React.Component<ViewModeProps, ViewModeState> {
   }
 }
 
-export default ViewMode;
+export default withRouter(ViewMode);
