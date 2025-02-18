@@ -31,11 +31,15 @@ class Sidebar extends React.Component<SidebarProps, SidebarState> {
   handleSidebar = (mode: string) => {
     this.setState({ mode: mode });
     this.props.handleSelectBook(false);
-    this.props.history.push(`/manager/${mode}`);
-    this.props.handleMode(mode);
-    this.props.handleShelf("");
-    this.props.handleSearch(false);
-    this.props.handleSortDisplay(false);
+    if (mode === "speed") {
+      this.props.history.push("/speed");
+    } else {
+      this.props.history.push(`/manager/${mode}`);
+      this.props.handleMode(mode);
+      this.props.handleShelf("");
+      this.props.handleSearch(false);
+      this.props.handleSortDisplay(false);
+    }
   };
   handleHover = (mode: string) => {
     this.setState({ hoverMode: mode });

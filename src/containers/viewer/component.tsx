@@ -20,12 +20,15 @@ import {
   ConfigService,
 } from "../../assets/lib/kookit-extra-browser.min";
 import * as Kookit from "../../assets/lib/kookit.min";
-import SpeedReader from "../../components/speedReader";
+import SpeedReader from "../../components/speedReader/component";
 declare var window: any;
 let lock = false; //prevent from clicking too fasts
 
 class Viewer extends React.Component<ViewerProps, ViewerState> {
   lock: boolean;
+  handleCurrentChapter: (currentChapter: string) => void;
+  handleCurrentChapterIndex: (currentChapterIndex: number) => void;
+
   constructor(props: ViewerProps) {
     super(props);
     this.state = {
@@ -55,8 +58,13 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
       pageWidth: "",
       chapter: "",
       rendition: null,
+      htmlBook: null,
+      readerMode: props.readerMode,
+      currentBook: null
     };
     this.lock = false;
+    this.handleCurrentChapter = props.handleCurrentChapter;
+    this.handleCurrentChapterIndex = props.handleCurrentChapterIndex;
   }
   UNSAFE_componentWillMount() {
     this.props.handleFetchBookmarks();
@@ -70,7 +78,7 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
     this.setState(
       getPageWidth(
         this.props.readerMode,
-        this.state.scale,
+        this.state.scale.toString(),
         this.state.margin,
         this.props.isNavLocked
       )
@@ -84,7 +92,8 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
 
   handleHighlight = async (rendition: any) => {
     let highlighters: any = this.props.notes;
-    if (!highlighters) return;
+    if (!highlighters || !this.props.htmlBook?.rendition) return;
+    
     let highlightersByChapter = highlighters.filter((item: Note) => {
       if (item.bookKey !== this.props.currentBook.key) {
         return false;
@@ -115,25 +124,44 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
     this.props.handleOpenMenu(true);
   };
   handleRenderBook = async () => {
-    if (lock) return;
-    // Don't render the book if we're in speed reader mode
-    if (this.props.readerMode === "speed") {
-      this.props.handleReadingState(true);
+    console.log('[Viewer] Starting render book:', {
+      currentState: {
+        hasHtmlBook: !!this.state.htmlBook,
+        readerMode: this.state.readerMode,
+        currentBookKey: this.state.currentBook?.key
+      }
+    });
+
+    if (lock) {
+      console.log("[Viewer] Render locked, returning");
       return;
     }
+
+    // We need to initialize the book even in speed reader mode
     let { key, path, format, name } = this.props.currentBook;
+    console.log("[Viewer] Book info:", { key, format, name });
+
     this.props.handleHtmlBook(null);
     let doc = getIframeDoc();
     if (doc && this.state.rendition) {
       this.state.rendition.removeContent();
     }
+
     let isCacheExsit = await BookUtil.isBookExist("cache-" + key, "zip", path);
+    console.log("[Viewer] Cache status:", { isCacheExsit, key });
+
     BookUtil.fetchBook(
       isCacheExsit ? "cache-" + key : key,
       isCacheExsit ? "zip" : format.toLowerCase(),
       true,
       path
     ).then(async (result: any) => {
+      console.log("[Viewer] Book fetch result:", { 
+        hasResult: !!result,
+        format,
+        defaultSyncOption: this.props.defaultSyncOption 
+      });
+
       if (!result) {
         if (this.props.defaultSyncOption) {
           await BookUtil.downloadBook(key, format.toLowerCase());
@@ -154,123 +182,373 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
         Kookit
       );
 
-      await rendition.renderTo(document.getElementById("page-area"));
+      // Detailed rendition inspection
+      const renditionProps = Object.getOwnPropertyNames(rendition);
+      const prototypeProps = Object.getOwnPropertyNames(Object.getPrototypeOf(rendition));
+      const renditionMethods = Object.getOwnPropertyNames(rendition).filter(
+        prop => typeof rendition[prop] === 'function'
+      );
+      
+      console.log("[Viewer] Detailed rendition inspection:", {
+        constructorName: rendition.constructor?.name,
+        prototypeChain: Object.getPrototypeOf(rendition)?.constructor?.name,
+        availableMethods: renditionMethods,
+        renderMethods: prototypeProps.filter(p => p.toLowerCase().includes('render')),
+        internalMethods: renditionProps.filter(p => p.startsWith('_')),
+        hasRenderTo: typeof rendition.renderTo === 'function',
+        hasInternalRender: typeof rendition._render === 'function',
+        renderToImplementation: rendition.renderTo?.toString(),
+        spineState: {
+          hasSpine: !!rendition.spine,
+          spineItems: rendition.spine?.items?.length,
+          spinePosition: rendition.spine?.position
+        }
+      });
+
+      // Original inspection
+      console.log("[Viewer] Rendition inspection:", {
+        hasRenderTo: typeof rendition.renderTo === 'function',
+        initRelatedProps: renditionProps.filter(p => p.toLowerCase().includes('init')),
+        initRelatedMethods: prototypeProps.filter(p => p.toLowerCase().includes('init')),
+        constructorName: rendition.constructor?.name,
+        hasInternalRender: typeof rendition._render === 'function',
+        renderMethods: prototypeProps.filter(p => p.toLowerCase().includes('render'))
+      });
+
+      console.log("[Viewer] Post-rendition creation state:", {
+        hasRendition: !!rendition,
+        readerMode: this.props.readerMode,
+        initState: rendition?.state,
+        initSequence: "post-creation",
+        contentMethods: {
+          hasContent: !!rendition?.content,
+          hasDoc: !!rendition?.doc,
+          canGetContent: typeof rendition?.getContent === 'function',
+          canRenderContent: typeof rendition?.renderContent === 'function'
+        }
+      });
+
+      // Only render to page-area if not in speed reader mode
+      if (this.props.readerMode === "speed") {
+        console.log("[Viewer] Speed mode initialization:", {
+          skipRenderTo: false,
+          usingHiddenContainer: true,
+          initSequence: "pre-render",
+          spineData: {
+            items: rendition.spine?.items?.length || 0,
+            currentIndex: rendition.spine?.position || 0
+          },
+          manifestData: {
+            items: rendition.manifest?.length || 0,
+            firstItem: rendition.manifest?.[0]?.href
+          }
+        });
+        
+        // Create hidden container for initialization
+        const hiddenContainer = document.createElement('div');
+        hiddenContainer.id = 'speed-reader-hidden-container';
+        hiddenContainer.style.cssText = 'position: fixed; width: 800px; height: 600px; top: -9999px; left: -9999px; visibility: hidden; overflow: hidden;';
+        document.body.appendChild(hiddenContainer);
+        
+        try {
+          // Initialize rendition in hidden container
+          console.log('[Viewer] Starting speed reader initialization');
+          
+          // Create a promise to track full initialization
+          const initializeRendition = new Promise<{
+            key: string;
+            chapters: any[];
+            flattenChapters: any[];
+            rendition: any;
+            spine: any;
+            getChapterContent: (index: number) => Promise<string>;
+          }>(async (resolve, reject) => {
+            try {
+              // First attach the container
+              await rendition.renderTo(hiddenContainer);
+              
+              // Wait for book parsing if needed
+              if (!rendition.book) {
+                console.log('[Viewer] Parsing book...');
+                await rendition.parse();
+              }
+              
+              // Set up content rendered handler
+              let contentRendered = false;
+              rendition.on("rendered", () => {
+                console.log('[Viewer] Content rendered event received');
+                contentRendered = true;
+              });
+              
+              // Wait for initial render
+              console.log('[Viewer] Waiting for content to render...');
+              await new Promise(resolve => {
+                const checkRendered = () => {
+                  if (contentRendered) {
+                    resolve(true);
+                  } else {
+                    setTimeout(checkRendered, 100);
+                  }
+                };
+                checkRendered();
+              });
+              
+              // Get chapter data
+              console.log('[Viewer] Getting chapter data...');
+              const chapterManager = new rendition.constructor.ChapterManager(rendition.book);
+              const chapters = await chapterManager.getChapter(rendition.book.toc);
+              const chapterDocs = await chapterManager.getChapterDoc();
+              
+              console.log('[Viewer] Chapter data loaded:', {
+                hasChapters: !!chapters?.length,
+                chapterCount: chapters?.length,
+                docCount: chapterDocs?.length,
+                firstChapterTitle: chapters?.[0]?.label,
+                firstChapterContent: chapterDocs?.[0]?.textContent?.slice(0, 50)
+              });
+              
+              if (!chapters?.length || !chapterDocs?.length) {
+                throw new Error('Failed to load chapters');
+              }
+              
+              // Create book structure with loaded content
+              const speedReaderBook = {
+                key: this.props.currentBook.key,
+                chapters: chapters,
+                flattenChapters: rendition.flatChapter(chapters),
+                rendition: rendition,
+                spine: rendition.spine,
+                getChapterContent: async (index: number) => {
+                  try {
+                    if (!chapterDocs?.[index]) {
+                      console.error('[Viewer] Chapter doc not found:', { index, totalDocs: chapterDocs?.length });
+                      return '';
+                    }
+                    const content = chapterDocs[index].textContent;
+                    console.log('[Viewer] Retrieved chapter content:', {
+                      index,
+                      hasContent: !!content,
+                      previewLength: content?.length,
+                      preview: content?.slice(0, 50)
+                    });
+                    return content || '';
+                  } catch (error) {
+                    console.error('[Viewer] Error getting chapter content:', error);
+                    return '';
+                  }
+                }
+              };
+              
+              resolve(speedReaderBook);
+            } catch (error) {
+              reject(error);
+            }
+          });
+          
+          // Wait for full initialization
+          const speedReaderBook = await initializeRendition;
+          
+          // Set the initialized book in state
+          this.setState({ 
+            htmlBook: speedReaderBook 
+          }, () => {
+            console.log('[Viewer] Speed reader book initialized:', {
+              hasBook: !!speedReaderBook,
+              chapterCount: speedReaderBook.chapters.length,
+              hasContent: typeof speedReaderBook.getChapterContent === 'function',
+              firstChapterPreview: speedReaderBook.chapters[0]?.label
+            });
+          });
+          
+        } catch (error) {
+          console.error('[Viewer] Failed to initialize speed reader:', error);
+          throw error;
+        } finally {
+          if (hiddenContainer.parentNode) {
+            hiddenContainer.parentNode.removeChild(hiddenContainer);
+          }
+        }
+      } else {
+        // Original initialization for other reader modes
+        await rendition.renderTo(document.getElementById("page-area"));
+      }
+
       await this.handleRest(rendition);
       this.props.handleReadingState(true);
 
       ConfigService.setListConfig(this.props.currentBook.key, "recentBooks");
       document.title = name + " - Koodo Reader";
+
+      // After setting htmlBook in state
+      this.setState({ htmlBook: {
+        key: this.props.currentBook.key,
+        chapters: rendition.getChapter(),
+        flattenChapters: rendition.flatChapter(rendition.getChapter()),
+        rendition: rendition,
+      } }, () => {
+        console.log('[Viewer] HtmlBook set in state:', {
+          hasHtmlBook: !!this.state.htmlBook,
+          hasRendition: !!this.state.htmlBook?.rendition,
+          readerMode: this.state.readerMode
+        });
+      });
     });
   };
 
   handleRest = async (rendition: any) => {
-    HtmlMouseEvent(
-      rendition,
-      this.props.currentBook.key,
-      this.props.readerMode
-    );
-    let chapters = rendition.getChapter();
-    let chapterDocs = rendition.getChapterDoc();
-    let flattenChapters = rendition.flatChapter(chapters);
-    this.props.handleHtmlBook({
-      key: this.props.currentBook.key,
-      chapters,
-      flattenChapters,
-      rendition: rendition,
-    });
-    this.setState({ rendition });
+    try {
+      // Log initial rendition state
+      console.log("[Viewer] Starting handleRest with rendition:", {
+        hasRendition: !!rendition,
+        methods: rendition ? Object.keys(rendition) : [],
+        state: rendition?.state,
+        isContentReady: rendition?.isContentReady,
+        readerMode: this.props.readerMode,
+        internalState: rendition?._state,
+        contentLoaded: rendition?.isContentLoaded?.(),
+        hasChapters: !!rendition?.getChapter?.(),
+        hasChapterDocs: !!rendition?.getChapterDoc?.()
+      });
 
-    StyleUtil.addDefaultCss();
-    rendition.tsTransform();
-    rendition.bionicReadingProcess();
-    // rendition.setStyle(StyleUtil.getCustomCss());
-    let bookLocation: {
-      text: string;
-      count: string;
-      chapterTitle: string;
-      chapterDocIndex: string;
-      chapterHref: string;
-      percentage: string;
-      cfi: string;
-      page: string;
-    } = ConfigService.getObjectConfig(
-      this.props.currentBook.key,
-      "recordLocation",
-      {}
-    );
-    if (chapterDocs.length > 0) {
-      await rendition.goToPosition(
-        JSON.stringify({
-          text: bookLocation.text || "",
-          chapterTitle: bookLocation.chapterTitle || "",
-          page: bookLocation.page || "",
-          chapterDocIndex: bookLocation.chapterDocIndex || 0,
-          chapterHref: bookLocation.chapterHref || "",
-          count: bookLocation.hasOwnProperty("cfi")
-            ? "ignore"
-            : bookLocation.count || 0,
-          percentage: bookLocation.percentage,
-          cfi: bookLocation.cfi,
-          isFirst: true,
-        })
+      // Wait for rendition to be ready
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Check rendition state after delay
+      console.log("[Viewer] Rendition state after delay:", {
+        state: rendition?.state,
+        isContentReady: rendition?.isContentReady,
+        internalState: rendition?._state,
+        contentLoaded: rendition?.isContentLoaded?.(),
+        hasChapters: !!rendition?.getChapter?.(),
+        hasChapterDocs: !!rendition?.getChapterDoc?.()
+      });
+
+      console.log("[Viewer] Setting up rendition:", {
+        startingSetup: true,
+        hasMouseEvents: !!HtmlMouseEvent,
+        willGetChapters: true
+      });
+
+      HtmlMouseEvent(
+        rendition,
+        this.props.currentBook.key,
+        this.props.readerMode
       );
-    }
 
-    rendition.on("rendered", async () => {
-      this.handleLocation();
+      let chapters = rendition.getChapter();
+      let chapterDocs = rendition.getChapterDoc();
+      let flattenChapters = rendition.flatChapter(chapters);
+
+      // Only set htmlBook once we have all the data
+      this.props.handleHtmlBook({
+        key: this.props.currentBook.key,
+        chapters,
+        flattenChapters,
+        rendition: rendition,
+      });
+
+      this.setState({ rendition });
+
+      StyleUtil.addDefaultCss();
+      rendition.tsTransform();
+      rendition.bionicReadingProcess();
+
       let bookLocation: {
         text: string;
         count: string;
         chapterTitle: string;
         chapterDocIndex: string;
         chapterHref: string;
+        percentage: string;
+        cfi: string;
+        page: string;
       } = ConfigService.getObjectConfig(
         this.props.currentBook.key,
         "recordLocation",
         {}
       );
 
-      let chapter =
-        bookLocation.chapterTitle ||
-        (this.props.htmlBook && this.props.htmlBook.flattenChapters[0]
-          ? this.props.htmlBook.flattenChapters[0].label
-          : "Unknown chapter");
-      let chapterDocIndex = 0;
-      if (bookLocation.chapterDocIndex) {
-        chapterDocIndex = parseInt(bookLocation.chapterDocIndex);
-      } else {
-        chapterDocIndex =
-          bookLocation.chapterTitle && this.props.htmlBook
-            ? _.findLastIndex(
-                this.props.htmlBook.flattenChapters.map((item) => {
-                  item.label = item.label.trim();
-                  return item;
-                }),
-                {
-                  label: bookLocation.chapterTitle.trim(),
-                }
-              )
-            : 0;
+      // Ensure we have chapter docs before proceeding
+      if (chapterDocs && chapterDocs.length > 0) {
+        await rendition.goToPosition(
+          JSON.stringify({
+            text: bookLocation.text || "",
+            chapterTitle: bookLocation.chapterTitle || "",
+            page: bookLocation.page || "1", // Default to page 1 if not set
+            chapterDocIndex: bookLocation.chapterDocIndex || 0,
+            chapterHref: bookLocation.chapterHref || "",
+            count: bookLocation.hasOwnProperty("cfi")
+              ? "ignore"
+              : bookLocation.count || 0,
+            percentage: bookLocation.percentage || 0,
+            cfi: bookLocation.cfi,
+            isFirst: true,
+          })
+        );
       }
-      this.props.handleCurrentChapter(chapter);
-      this.props.handleCurrentChapterIndex(chapterDocIndex);
-      this.props.handleFetchPercentage(this.props.currentBook);
-      this.setState({
-        chapter,
-        chapterDocIndex,
+
+      rendition.on("rendered", async () => {
+        try {
+          this.handleLocation();
+          let bookLocation: {
+            text: string;
+            count: string;
+            chapterTitle: string;
+            chapterDocIndex: string;
+            chapterHref: string;
+          } = ConfigService.getObjectConfig(
+            this.props.currentBook.key,
+            "recordLocation",
+            {}
+          );
+
+          let chapter =
+            bookLocation.chapterTitle ||
+            (this.props.htmlBook && this.props.htmlBook.flattenChapters[0]
+              ? this.props.htmlBook.flattenChapters[0].label
+              : "Unknown chapter");
+          let chapterDocIndex = 0;
+          if (bookLocation.chapterDocIndex) {
+            chapterDocIndex = parseInt(bookLocation.chapterDocIndex);
+          } else {
+            chapterDocIndex =
+              bookLocation.chapterTitle && this.props.htmlBook
+                ? _.findLastIndex(
+                    this.props.htmlBook.flattenChapters.map((item) => {
+                      item.label = item.label.trim();
+                      return item;
+                    }),
+                    {
+                      label: bookLocation.chapterTitle.trim(),
+                    }
+                  )
+                : 0;
+          }
+          this.props.handleCurrentChapter(chapter);
+          this.props.handleCurrentChapterIndex(chapterDocIndex);
+          this.props.handleFetchPercentage(this.props.currentBook);
+          this.setState({
+            chapter,
+            chapterDocIndex,
+          });
+          scrollContents(chapter, bookLocation.chapterHref);
+          StyleUtil.addDefaultCss();
+          rendition.tsTransform();
+          rendition.bionicReadingProcess();
+          this.handleBindGesture();
+          await this.handleHighlight(rendition);
+          lock = true;
+          setTimeout(function () {
+            lock = false;
+          }, 1000);
+          return false;
+        } catch (error) {
+          console.error("[Viewer] Error in rendered callback:", error);
+        }
       });
-      scrollContents(chapter, bookLocation.chapterHref);
-      StyleUtil.addDefaultCss();
-      rendition.tsTransform();
-      rendition.bionicReadingProcess();
-      this.handleBindGesture();
-      await this.handleHighlight(rendition);
-      lock = true;
-      setTimeout(function () {
-        lock = false;
-      }, 1000);
-      return false;
-    });
+    } catch (error) {
+      console.error("[Viewer] Error in handleRest:", error);
+    }
   };
 
   handleLocation = () => {
@@ -329,6 +607,22 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
   render() {
     // If in speed reader mode, only render the speed reader view
     if (this.props.readerMode === "speed") {
+      // Add type validation logging
+      console.log("[Viewer] SpeedReader render:", {
+        viewerProps: {
+          readerMode: this.props.readerMode,
+          hasHtmlBook: !!this.props.htmlBook,
+          hasTranslation: !!this.props.t,
+        },
+        speedReaderProps: {
+          htmlBook: !!this.props.htmlBook,
+          currentBook: !!this.props.currentBook,
+          handleCurrentChapter: !!this.props.handleCurrentChapter,
+          handleCurrentChapterIndex: !!this.props.handleCurrentChapterIndex,
+          t: !!this.props.t
+        }
+      });
+
       return (
         <div
           className="html-viewer-page speed-reader-page"
@@ -340,7 +634,13 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
             bottom: 0,
           }}
         >
-          <SpeedReader />
+          <SpeedReader
+            htmlBook={this.props.htmlBook}
+            currentBook={this.props.currentBook}
+            handleCurrentChapter={this.props.handleCurrentChapter}
+            handleCurrentChapterIndex={this.props.handleCurrentChapterIndex}
+            t={this.props.t}
+          />
         </div>
       );
     }
@@ -410,6 +710,47 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
           <Background />
         ) : null}
       </>
+    );
+  }
+
+  renderSpeedReader() {
+    console.log('[Viewer] Preparing SpeedReader props:', {
+      hasHtmlBook: !!this.props.htmlBook,
+      htmlBookState: this.props.htmlBook ? {
+        hasRendition: !!this.props.htmlBook.rendition,
+        hasSpine: !!this.props.htmlBook.spine,
+        hasFlattenChapters: !!this.props.htmlBook.flattenChapters
+      } : null,
+      currentBookKey: this.props.currentBook?.key
+    });
+
+    const viewerProps = {
+      readerMode: this.props.readerMode,
+      hasHtmlBook: !!this.props.htmlBook,
+      hasTranslation: this.props.t !== undefined,
+    };
+
+    const speedReaderProps = {
+      htmlBook: this.props.htmlBook,
+      currentBook: this.props.currentBook,
+      handleCurrentChapter: this.handleCurrentChapter,
+      handleCurrentChapterIndex: this.handleCurrentChapterIndex,
+    };
+
+    console.log('[Viewer] SpeedReader props prepared:', {
+      viewerProps,
+      speedReaderProps: {
+        hasHtmlBook: !!speedReaderProps.htmlBook,
+        hasCurrentBook: !!speedReaderProps.currentBook,
+        hasHandlers: {
+          chapter: !!speedReaderProps.handleCurrentChapter,
+          index: !!speedReaderProps.handleCurrentChapterIndex
+        }
+      }
+    });
+
+    return (
+      <SpeedReader {...speedReaderProps} />
     );
   }
 }

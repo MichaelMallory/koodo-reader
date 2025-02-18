@@ -62,15 +62,6 @@ class ModeControl extends React.Component<ModeControlProps, ModeControlState> {
           >
             <span className="icon-scroll two-page-icon"></span>
           </div>
-          <div
-            className="double-mode-container"
-            onClick={() => {
-              this.handleChangeMode("speed");
-            }}
-            style={this.props.readerMode === "speed" ? {} : { opacity: 0.4 }}
-          >
-            <span className="icon-eye two-page-icon"></span>
-          </div>
         </div>
       </div>
     );

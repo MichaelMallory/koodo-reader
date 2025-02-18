@@ -1,0 +1,343 @@
+.speed-reader-page {
+  width: 100vw;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background-color: black;
+  color: #00ff00;
+  font-family: monospace;
+  overflow: hidden;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+}
+
+.book-selection-container {
+  width: 100%;
+  height: 100%;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.9);
+  position: relative;
+  z-index: 2;
+}
+
+.book-selection-title {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  text-shadow: 0 0 10px #00ff00;
+  text-align: center;
+  animation: pulse 2s infinite;
+}
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 2rem;
+  width: 100%;
+  max-width: 1200px;
+  padding: 1rem;
+  overflow-y: auto;
+  position: relative;
+  z-index: 2;
+}
+
+.book-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid #00ff00;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(0, 20, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.book-item::before {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 300%;
+  height: 300%;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    rgba(0, 255, 0, 0.1) 45%,
+    rgba(0, 255, 0, 0.2) 50%,
+    rgba(0, 255, 0, 0.1) 55%,
+    transparent 100%
+  );
+  transition: all 0.5s ease;
+}
+
+.book-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+  background: rgba(0, 40, 0, 0.5);
+}
+
+.book-item:hover::before {
+  top: -50%;
+  left: -50%;
+}
+
+.book-cover {
+  width: 150px;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+.book-info {
+  width: 100%;
+  text-align: center;
+}
+
+.book-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: #00ff00;
+  text-shadow: 0 0 5px #00ff00;
+}
+
+.book-author {
+  font-size: 0.9rem;
+  color: #00cc00;
+  opacity: 0.8;
+}
+
+/* Matrix rain effect */
+@keyframes matrix-rain {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.matrix-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.matrix-column {
+  position: absolute;
+  top: -100%;
+  color: #00ff00;
+  font-size: 1.2rem;
+  line-height: 1;
+  animation: matrix-rain 20s linear infinite;
+  opacity: 0.5;
+}
+
+@keyframes pulse {
+  0% {
+    text-shadow: 0 0 10px #00ff00;
+  }
+  50% {
+    text-shadow: 0 0 20px #00ff00, 0 0 30px #00ff00;
+  }
+  100% {
+    text-shadow: 0 0 10px #00ff00;
+  }
+}
+
+/* Scrollbar styling */
+.book-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.book-grid::-webkit-scrollbar-track {
+  background: rgba(0, 20, 0, 0.5);
+}
+
+.book-grid::-webkit-scrollbar-thumb {
+  background: #00ff00;
+  border-radius: 4px;
+}
+
+.book-grid::-webkit-scrollbar-thumb:hover {
+  background: #00cc00;
+}
+
+/* Back button */
+.back-button {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  padding: 10px 20px;
+  background: rgba(0, 20, 0, 0.8);
+  border: 1px solid #00ff00;
+  border-radius: 4px;
+  color: #00ff00;
+  font-family: monospace;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 3;
+}
+
+.back-button:hover {
+  background: rgba(0, 40, 0, 0.8);
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+}
+
+/* Speed reader content */
+.speed-reader-content {
+  width: 100%;
+  height: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+  z-index: 2;
+  overflow-y: auto;
+}
+
+.chapter-navigation {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: rgba(0, 20, 0, 0.95);
+  border: 1px solid #00ff00;
+  border-radius: 4px;
+  z-index: 3;
+}
+
+.nav-button {
+  padding: 0.5rem 1rem;
+  background: rgba(0, 40, 0, 0.8);
+  border: 1px solid #00ff00;
+  border-radius: 4px;
+  color: #00ff00;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nav-button:hover:not(:disabled) {
+  background: rgba(0, 60, 0, 0.8);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chapter-title {
+  font-size: 1.2rem;
+  color: #00ff00;
+  text-shadow: 0 0 5px #00ff00;
+}
+
+.chapter-text-container {
+  flex: 1;
+  position: relative;
+  background: rgba(0, 20, 0, 0.8);
+  border: 1px solid #00ff00;
+  border-radius: 4px;
+  padding: 0.5rem;
+  overflow: hidden;
+  min-height: 200px;
+  max-height: calc(100vh - 250px);
+}
+
+.chapter-text {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #00ff00;
+  font-family: monospace;
+  font-size: 1rem;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  padding: 0.5rem;
+  overflow-y: auto;
+}
+
+.chapter-text::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chapter-text::-webkit-scrollbar-track {
+  background: rgba(0, 20, 0, 0.5);
+}
+
+.chapter-text::-webkit-scrollbar-thumb {
+  background: #00ff00;
+  border-radius: 4px;
+}
+
+.chapter-text::-webkit-scrollbar-thumb:hover {
+  background: #00cc00;
+}
+
+.error-message {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1rem 2rem;
+  background: rgba(255, 0, 0, 0.2);
+  border: 1px solid #ff0000;
+  border-radius: 4px;
+  color: #ff0000;
+  font-family: monospace;
+  z-index: 4;
+  text-align: center;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.reader-controls {
+  position: sticky;
+  top: 60px;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.5rem;
+  background: rgba(0, 20, 0, 0.95);
+  border: 1px solid #00ff00;
+  border-radius: 4px;
+  z-index: 3;
+}
+
+.matrix-reader-display {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+} 

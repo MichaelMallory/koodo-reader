@@ -4,9 +4,14 @@ import NoteList from "../containers/lists/noteList";
 import DigestList from "../containers/lists/digestList";
 import EmptyPage from "../containers/emptyPage";
 import LoadingPage from "../containers/loadingPage";
-import SpeedReader from "../components/speedReader";
+import SpeedReaderPage from "../pages/speedReader";
 
-export const routes = [
+interface RouteConfig {
+  path: string;
+  component: any; // Components are properly typed in their own files
+}
+
+export const routes: RouteConfig[] = [
   { path: "/manager/empty", component: EmptyPage },
   { path: "/manager/loading", component: LoadingPage },
   { path: "/manager/note", component: NoteList },
@@ -15,5 +20,5 @@ export const routes = [
   { path: "/manager/shelf", component: BookList },
   { path: "/manager/favorite", component: BookList },
   { path: "/manager/trash", component: DeletedBookList },
-  { path: "/manager/speed", component: SpeedReader },
+  { path: "/manager/speed", component: SpeedReaderPage },
 ];

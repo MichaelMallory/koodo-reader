@@ -1,0 +1,259 @@
+import React, { useState, useEffect } from 'react';
+import * as epub from 'epubjs';
+import * as pdfjs from 'pdfjs-dist/webpack';
+
+pdfjs.GlobalWorkerOptions.workerSrc = '//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.js';
+
+const FileTextExtractor = () => {
+  const [file, setFile] = useState(null);
+  const [fileType, setFileType] = useState(null);
+  const [chapters, setChapters] = useState([]);
+  const [currentChapter, setCurrentChapter] = useState(0);
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [currentWord, setCurrentWord] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [speed, setSpeed] = useState(250); // milliseconds between words
+  
+  useEffect(() => {
+    let intervalId;
+    if (isPlaying && chapters.length > 0 && currentChapter < chapters.length) {
+      const words = chapters[currentChapter].text.split(/\s+/);
+      
+      intervalId = setInterval(() => {
+        if (currentWordIndex < words.length) {
+          setCurrentWord(words[currentWordIndex]);
+          setCurrentWordIndex(prev => prev + 1);
+        } else if (currentChapter < chapters.length - 1) {
+          // Move to next chapter
+          setCurrentChapter(prev => prev + 1);
+          setCurrentWordIndex(0);
+        } else {
+          // End of content
+          setIsPlaying(false);
+        }
+      }, speed);
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isPlaying, currentChapter, currentWordIndex, chapters, speed]);
+  
+  const handleFileChange = async (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+    
+    setFile(selectedFile);
+    const fileExtension = selectedFile.name.split('.').pop().toLowerCase();
+    setFileType(fileExtension);
+    
+    // Reset state
+    setChapters([]);
+    setCurrentChapter(0);
+    setCurrentWordIndex(0);
+    setCurrentWord('');
+    setIsPlaying(false);
+    
+    if (fileExtension === 'epub') {
+      await extractEpubContent(selectedFile);
+    } else if (fileExtension === 'pdf') {
+      await extractPdfContent(selectedFile);
+    }
+  };
+  
+  const extractEpubContent = async (file) => {
+    const reader = new FileReader();
+    
+    reader.onload = async (e) => {
+      const book = epub(e.target.result);
+      await book.ready;
+      
+      // Get TOC (table of contents) which contains chapter info
+      const toc = await book.navigation.toc;
+      const extractedChapters = [];
+      
+      // Process each chapter
+      for (let i = 0; i < toc.length; i++) {
+        const chapter = toc[i];
+        const section = book.spine.get(chapter.href);
+        if (section) {
+          const content = await section.load();
+          const text = content.textContent.trim();
+          extractedChapters.push({
+            title: chapter.label,
+            text: text
+          });
+        }
+      }
+      
+      setChapters(extractedChapters);
+    };
+    
+    reader.readAsArrayBuffer(file);
+  };
+  
+  const extractPdfContent = async (file) => {
+    const reader = new FileReader();
+    
+    reader.onload = async (e) => {
+      const pdfData = new Uint8Array(e.target.result);
+      const loadingTask = pdfjs.getDocument({ data: pdfData });
+      const pdf = await loadingTask.promise;
+      
+      // Get outline (TOC) which contains chapter info
+      const outline = await pdf.getOutline();
+      if (!outline || outline.length === 0) {
+        // If no outline, treat the whole document as one chapter
+        const extractedText = await extractTextFromPdf(pdf, 1, pdf.numPages);
+        setChapters([{ title: "Document", text: extractedText }]);
+        return;
+      }
+      
+      const extractedChapters = [];
+      
+      for (let i = 0; i < outline.length; i++) {
+        const chapter = outline[i];
+        if (chapter.dest) {
+          let startPage, endPage;
+          
+          // Get start page
+          if (typeof chapter.dest === 'string') {
+            const dest = await pdf.getDestination(chapter.dest);
+            const ref = await pdf.getPageIndex(dest[0]);
+            startPage = ref + 1;
+          } else {
+            startPage = (await pdf.getPageIndex(chapter.dest[0])) + 1;
+          }
+          
+          // Get end page (either next chapter start - 1 or last page)
+          if (i < outline.length - 1) {
+            const nextChapter = outline[i + 1];
+            if (typeof nextChapter.dest === 'string') {
+              const dest = await pdf.getDestination(nextChapter.dest);
+              const ref = await pdf.getPageIndex(dest[0]);
+              endPage = ref;
+            } else {
+              endPage = (await pdf.getPageIndex(nextChapter.dest[0]));
+            }
+          } else {
+            endPage = pdf.numPages;
+          }
+          
+          const chapterText = await extractTextFromPdf(pdf, startPage, endPage);
+          extractedChapters.push({
+            title: chapter.title,
+            text: chapterText
+          });
+        }
+      }
+      
+      setChapters(extractedChapters);
+    };
+    
+    reader.readAsArrayBuffer(file);
+  };
+  
+  const extractTextFromPdf = async (pdf, startPage, endPage) => {
+    let fullText = '';
+    
+    for (let i = startPage; i <= endPage; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const strings = content.items.map(item => item.str);
+      fullText += strings.join(' ') + '\n';
+    }
+    
+    return fullText;
+  };
+  
+  const togglePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+  
+  const handleSpeedChange = (e) => {
+    setSpeed(parseInt(e.target.value));
+  };
+  
+  const selectChapter = (index) => {
+    setCurrentChapter(index);
+    setCurrentWordIndex(0);
+    setCurrentWord('');
+    setIsPlaying(false);
+  };
+  
+  return (
+    <div className="max-w-4xl mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">EPUB/PDF Text Extractor</h1>
+      
+      <div className="mb-6">
+        <label className="block mb-2 font-medium">
+          Upload EPUB or PDF:
+          <input
+            type="file"
+            accept=".epub,.pdf"
+            onChange={handleFileChange}
+            className="block w-full mt-1 border-gray-300 rounded"
+          />
+        </label>
+      </div>
+      
+      {chapters.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-xl font-semibold mb-2">Chapters</h2>
+          <div className="max-h-40 overflow-y-auto mb-4 border p-2">
+            {chapters.map((chapter, index) => (
+              <div
+                key={index}
+                onClick={() => selectChapter(index)}
+                className={`cursor-pointer p-1 ${currentChapter === index ? 'bg-blue-100' : ''}`}
+              >
+                {chapter.title}
+              </div>
+            ))}
+          </div>
+          
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold mb-2">Word Display</h2>
+            <div className="h-32 flex justify-center items-center text-4xl border p-4 mb-4">
+              {currentWord || "Press Play to start"}
+            </div>
+            
+            <div className="flex items-center space-x-4 mb-4">
+              <button
+                onClick={togglePlayPause}
+                className={`px-4 py-2 rounded ${isPlaying ? 'bg-red-500' : 'bg-green-500'} text-white`}
+              >
+                {isPlaying ? 'Pause' : 'Play'}
+              </button>
+              
+              <label className="flex items-center">
+                <span className="mr-2">Speed:</span>
+                <input
+                  type="range"
+                  min="50"
+                  max="500"
+                  step="10"
+                  value={speed}
+                  onChange={handleSpeedChange}
+                  className="w-32"
+                />
+                <span className="ml-2">{speed}ms</span>
+              </label>
+            </div>
+            
+            <div className="mb-4">
+              <h3 className="font-medium">Current Progress:</h3>
+              <p>
+                Chapter: {currentChapter + 1} of {chapters.length} ({chapters[currentChapter]?.title || ''})
+                <br />
+                Word: {currentWordIndex} of {chapters[currentChapter]?.text.split(/\s+/).length || 0}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default FileTextExtractor;

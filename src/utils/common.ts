@@ -203,7 +203,13 @@ export const getPageWidth = (
 };
 export const loadFontData = async () => {
   try {
-    const availableFonts = await window.queryLocalFonts();
+    // Check if the Local Font Access API is available
+    if (!('queryLocalFonts' in window)) {
+      console.warn('Local Font Access API is not supported in this browser');
+      return [];
+    }
+
+    const availableFonts = await (window as any).queryLocalFonts();
     return availableFonts.map((font: any) => {
       return {
         label: font.fullName,
@@ -211,7 +217,8 @@ export const loadFontData = async () => {
       };
     });
   } catch (err) {
-    console.error(err);
+    console.error('Error loading fonts:', err);
+    return [];
   }
 };
 export function removeSearchParams() {

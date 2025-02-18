@@ -3,7 +3,10 @@ import { withTranslation } from "react-i18next";
 import SpeedReader from "./component";
 import { stateType } from "../../store";
 
-const mapStateToProps = (_state: stateType) => ({});
+const mapStateToProps = (state: stateType) => ({
+  htmlBook: state.reader.htmlBook,
+  currentBook: state.book.currentBook
+});
 
 const mapDispatchToProps = {};
 

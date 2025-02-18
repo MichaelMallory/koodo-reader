@@ -12,11 +12,7 @@ class ViewMode extends React.Component<ViewModeProps, ViewModeState> {
   }
   handleChange = (mode: string) => {
     ConfigService.setReaderConfig("viewMode", mode);
-    if (mode === "speed") {
-      this.props.history.push("/manager/speed");
-    } else {
-      this.props.handleFetchList();
-    }
+    this.props.handleFetchList();
   };
   isElementInViewport = (element) => {
     const rect = element.getBoundingClientRect();

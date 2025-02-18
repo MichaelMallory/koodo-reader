@@ -20,7 +20,22 @@ class Background extends React.Component<BackgroundProps, BackgroundState> {
   }
 
   async UNSAFE_componentWillReceiveProps(nextProps: BackgroundProps) {
+    console.log("[PageWidget] Receiving new props:", {
+      hasNewHtmlBook: !!nextProps.htmlBook,
+      hasOldHtmlBook: !!this.props.htmlBook,
+      hasRendition: !!nextProps.htmlBook?.rendition,
+      renditionState: nextProps.htmlBook?.rendition?.state,
+      renditionReady: nextProps.htmlBook?.rendition?.isContentReady
+    });
+
     if (nextProps.htmlBook !== this.props.htmlBook && nextProps.htmlBook) {
+      console.log("[PageWidget] About to handle page num:", {
+        renditionMethods: nextProps.htmlBook.rendition ? Object.keys(nextProps.htmlBook.rendition) : [],
+        hasGetProgress: !!nextProps.htmlBook.rendition?.getProgress,
+        renditionState: nextProps.htmlBook.rendition?.state,
+        contentReady: nextProps.htmlBook.rendition?.isContentReady
+      });
+
       await this.handlePageNum(nextProps.htmlBook.rendition);
       nextProps.htmlBook.rendition.on("page-changed", async () => {
         await this.handlePageNum(nextProps.htmlBook.rendition);
@@ -38,15 +53,92 @@ class Background extends React.Component<BackgroundProps, BackgroundState> {
     scrollContents(position.chapterTitle, position.chapterHref);
   };
   async handlePageNum(rendition) {
-    let pageInfo = await rendition.getProgress();
-    this.setState({
-      prevPage: this.state.isSingle
-        ? pageInfo.currentPage
-        : pageInfo.currentPage * 2 - 1,
-      nextPage: this.state.isSingle
-        ? pageInfo.currentPage
-        : pageInfo.currentPage * 2,
+    console.log("[PageWidget] Page number calculation attempt:", {
+      timing: "start",
+      renditionState: {
+        exists: !!rendition,
+        hasProgress: !!rendition?.getProgress,
+        state: rendition?.state,
+        isReady: rendition?.isContentReady,
+        contentStatus: {
+          hasContent: !!rendition?.content,
+          hasDoc: !!rendition?.doc,
+          isInitialized: rendition?.isInitialized
+        }
+      }
     });
+
+    if (!rendition || !rendition.getProgress) {
+      console.log("[PageWidget] Rendition or getProgress not available", {
+        hasRendition: !!rendition,
+        renditionMethods: rendition ? Object.keys(rendition) : [],
+        hasGetProgress: rendition?.getProgress ? 'yes' : 'no',
+        timing: "early-exit"
+      });
+      return;
+    }
+
+    try {
+      // Wait for rendition to be ready
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log("[PageWidget] Post-delay state:", {
+        timing: "after-delay",
+        renditionState: {
+          state: rendition?.state,
+          isReady: rendition?.isContentReady,
+          contentStatus: {
+            hasContent: !!rendition?.content,
+            hasDoc: !!rendition?.doc,
+            isInitialized: rendition?.isInitialized
+          }
+        }
+      });
+
+      // Get progress with a timeout
+      const getProgressWithTimeout = async () => {
+        const timeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('getProgress timeout')), 5000)
+        );
+        const progress = rendition.getProgress();
+        return Promise.race([progress, timeout]);
+      };
+
+      let pageInfo = await getProgressWithTimeout();
+      
+      // Log the pageInfo to help debug
+      console.log("[PageWidget] Page info:", { 
+        hasPageInfo: !!pageInfo,
+        pageInfoType: typeof pageInfo,
+        currentPage: pageInfo?.currentPage
+      });
+
+      // If pageInfo is null/undefined or doesn't have currentPage, use defaults
+      if (!pageInfo || typeof pageInfo.currentPage === 'undefined') {
+        console.log("[PageWidget] Using default page values");
+        this.setState({
+          prevPage: 1,
+          nextPage: 1
+        });
+        return;
+      }
+
+      this.setState({
+        prevPage: this.state.isSingle
+          ? pageInfo.currentPage
+          : pageInfo.currentPage * 2 - 1,
+        nextPage: this.state.isSingle
+          ? pageInfo.currentPage
+          : pageInfo.currentPage * 2,
+      });
+    } catch (error) {
+      console.error("[PageWidget] Error getting page progress:", error);
+      // Set default values on error
+      this.setState({
+        prevPage: 1,
+        nextPage: 1
+      });
+    }
   }
 
   render() {

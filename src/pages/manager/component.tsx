@@ -186,9 +186,9 @@ class Manager extends React.Component<ManagerProps, ManagerState> {
           <Switch>
             {routes.map((ele) => (
               <Route
-                render={() => <ele.component />}
                 key={ele.path}
                 path={ele.path}
+                render={routeProps => <ele.component {...routeProps} />}
               />
             ))}
           </Switch>
