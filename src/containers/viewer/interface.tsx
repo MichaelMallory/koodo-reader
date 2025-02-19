@@ -48,4 +48,8 @@ export interface ViewerState {
   htmlBook: HtmlBook | null;
   readerMode: string;
   currentBook: Book | null;
+  isSpeedReaderActive?: boolean;
+  speedReaderWPM?: number;
+  isMatrixOverlayActive: boolean;
+  currentWords: string[];
 }

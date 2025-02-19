@@ -6,20 +6,24 @@ import WordDisplay from "./atoms/wordDisplay/WordDisplay";
 import SpeedControls from "./atoms/controls/SpeedControls";
 import ProgressBar from "./atoms/progressBar/ProgressBar";
 import { EnhancedTextExtractor } from "../../utils/reader/enhancedTextExtractor";
+import localforage from "localforage";
 
 class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
   private wordTimer: NodeJS.Timeout | null = null;
   private textExtractor: EnhancedTextExtractor;
+  private abortController: AbortController;
+  private mounted: boolean = false;
 
   constructor(props: SpeedReaderProps) {
     super(props);
+    this.abortController = new AbortController();
+    this.textExtractor = new EnhancedTextExtractor();
+    
     console.log('[SpeedReader] Constructor:', {
       hasProps: !!props,
       hasHtmlBook: !!props.htmlBook,
       hasCurrentBook: !!props.currentBook
     });
-    
-    this.textExtractor = new EnhancedTextExtractor();
     
     this.state = {
       currentWord: "Loading...",
@@ -41,6 +45,7 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
   }
 
   componentDidMount() {
+    this.mounted = true;
     console.log('[SpeedReader] Component mounted:', {
       hasHtmlBook: !!this.props.htmlBook,
       currentBook: this.props.currentBook?.key,
@@ -67,6 +72,8 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
   }
 
   componentWillUnmount() {
+    this.mounted = false;
+    this.abortController.abort();
     document.removeEventListener('keydown', this.handleKeyPress);
     if (this.wordTimer) {
       clearInterval(this.wordTimer);
@@ -89,13 +96,30 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
     }
 
     try {
-      // Convert the book to a File object
-      const bookFile = new File([currentBook.path], currentBook.name, {
+      // Fetch book content from IndexedDB using localforage
+      const bookContent = await localforage.getItem<ArrayBuffer>(currentBook.key);
+      
+      if (!bookContent) {
+        throw new Error('Book content not found in storage');
+      }
+      
+      if (!this.mounted) return;
+
+      console.log('[SpeedReader] Fetched book content:', {
+        size: bookContent.byteLength,
+        type: currentBook.format,
+        expectedSize: currentBook.size
+      });
+
+      // Create proper File object with the book content
+      const bookFile = new File([new Uint8Array(bookContent)], currentBook.name, {
         type: `application/${currentBook.format.toLowerCase()}`
       });
 
       // Extract chapters
-      const chapters = await this.textExtractor.extractFromFile(bookFile, currentBook);
+      const chapters = await this.textExtractor.extractFromFile(bookFile, currentBook, this.abortController.signal);
+      
+      if (!this.mounted) return;
       
       if (chapters.length === 0) {
         throw new Error('No chapters extracted from the book');
@@ -103,33 +127,41 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
 
       // Get words from the first chapter
       const words = this.textExtractor.getChapterWords(0);
-      
-      this.setState({
-        chapters,
-        words,
-        currentWord: words[0] || "",
-        currentIndex: 0,
-        currentChapter: chapters[0].title,
-        currentChapterIndex: 0,
-        isLoading: false,
-        totalWords: this.textExtractor.getTotalWordCount(),
-        progress: 0,
-        isPlaying: false,
-        isCompleted: false,
-        flattenChapters: chapters,
-        rendition: null
-      });
 
-      // Update parent component
-      this.props.handleCurrentChapter(chapters[0].title);
-      this.props.handleCurrentChapterIndex(0);
+      if (this.mounted) {
+        this.setState({
+          chapters,
+          words,
+          currentWord: words[0] || "",
+          currentIndex: 0,
+          currentChapter: chapters[0].title,
+          currentChapterIndex: 0,
+          isLoading: false,
+          totalWords: this.textExtractor.getTotalWordCount(),
+          progress: 0,
+          isPlaying: false,
+          isCompleted: false,
+          flattenChapters: chapters,
+          rendition: null
+        });
+
+        // Update parent component
+        this.props.handleCurrentChapter(chapters[0].title, 0);
+      }
 
     } catch (error) {
-      console.error('[SpeedReader] Error initializing reader:', error);
-      this.setState({
-        isLoading: false,
-        currentWord: "Error loading book"
-      });
+      const err = error as unknown;
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        console.log('[SpeedReader] Operation aborted');
+        return;
+      }
+      console.error('[SpeedReader] Error initializing reader:', err);
+      if (this.mounted) {
+        this.setState({ 
+          isLoading: false, 
+          currentWord: "Error loading book"
+        });
+      }
     }
   }
 
@@ -186,8 +218,7 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
           const chapter = this.textExtractor.getCurrentChapter();
           
           // Update parent component
-          this.props.handleCurrentChapter(chapter?.title || "");
-          this.props.handleCurrentChapterIndex(nextChapterIndex);
+          this.props.handleCurrentChapter(chapter?.title || "", nextChapterIndex);
 
           return {
             ...prevState,
@@ -213,7 +244,7 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
       }
 
       // Next word in current chapter
-      return {
+    return {
         ...prevState,
         currentIndex: prevState.currentIndex + 1,
         currentWord: prevState.words[prevState.currentIndex + 1],
@@ -233,8 +264,7 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
           const chapter = this.textExtractor.getCurrentChapter();
           
           // Update parent component
-          this.props.handleCurrentChapter(chapter?.title || "");
-          this.props.handleCurrentChapterIndex(prevChapterIndex);
+          this.props.handleCurrentChapter(chapter?.title || "", prevChapterIndex);
 
           return {
             ...prevState,
@@ -286,7 +316,7 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
 
     let totalWordsBefore = 0;
     for (let i = 0; i < chapterIndex; i++) {
-      totalWordsBefore += chapters[i].wordCount;
+      totalWordsBefore += chapters[i].words.length;
     }
     
     const currentProgress = totalWordsBefore + wordIndex;
@@ -294,7 +324,7 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
   }
 
   render(): JSX.Element {
-    const {
+    const { 
       currentWord,
       isPlaying,
       isCompleted,
@@ -305,7 +335,7 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
       currentIndex,
       totalWords
     } = this.state;
-
+    
     if (isLoading) {
       return (
         <div className="speed-reader-container">
@@ -338,11 +368,11 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
             onReset={this.handleReset}
           />
           
-          <ProgressBar 
-            progress={progress}
-            totalWords={totalWords}
-            currentWord={currentIndex + 1}
-          />
+            <ProgressBar
+              progress={progress}
+              totalWords={totalWords}
+              currentWord={currentIndex + 1}
+            />
         </div>
       </div>
     );

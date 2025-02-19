@@ -1,28 +1,34 @@
 .speed-reader-page {
-  width: 100vw;
+  position: relative;
+  width: 100%;
   height: 100vh;
-  position: fixed;
-  top: 0;
-  left: 0;
+  overflow: hidden;
+  z-index: 1; /* Ensure base layer */
   background-color: black;
   color: #00ff00;
   font-family: monospace;
-  overflow: hidden;
-  z-index: 999;
   display: flex;
   flex-direction: column;
 }
 
+/* Ensure other elements don't overlap the StorageInspector */
+.book-selection-container,
+.back-button,
+.error-message,
+.debug-panel {
+  z-index: 1;
+  position: relative;
+}
+
+/* Add some padding at the top to account for the StorageInspector */
 .book-selection-container {
+  padding-top: 80px;
   width: 100%;
   height: 100%;
-  padding: 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   background: rgba(0, 0, 0, 0.9);
-  position: relative;
-  z-index: 2;
 }
 
 .book-selection-title {
@@ -41,8 +47,6 @@
   max-width: 1200px;
   padding: 1rem;
   overflow-y: auto;
-  position: relative;
-  z-index: 2;
 }
 
 .book-item {
@@ -134,7 +138,6 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
 }
 
 .matrix-column {
@@ -190,7 +193,6 @@
   font-family: monospace;
   cursor: pointer;
   transition: all 0.3s ease;
-  z-index: 3;
 }
 
 .back-button:hover {
@@ -207,7 +209,6 @@
   flex-direction: column;
   gap: 0.5rem;
   position: relative;
-  z-index: 2;
   overflow-y: auto;
 }
 
@@ -221,7 +222,6 @@
   background: rgba(0, 20, 0, 0.95);
   border: 1px solid #00ff00;
   border-radius: 4px;
-  z-index: 3;
 }
 
 .nav-button {
@@ -331,7 +331,6 @@
   background: rgba(0, 20, 0, 0.95);
   border: 1px solid #00ff00;
   border-radius: 4px;
-  z-index: 3;
 }
 
 .matrix-reader-display {
@@ -340,4 +339,9 @@
   flex-direction: column;
   gap: 0.5rem;
   min-height: 0;
+}
+
+/* Ensure the debug panel doesn't overlap */
+.debug-panel {
+  margin-top: 80px;
 } 

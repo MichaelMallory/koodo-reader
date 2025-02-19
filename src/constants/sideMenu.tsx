@@ -20,11 +20,6 @@ export const sideMenu = [
     mode: "digest",
   },
   {
-    name: "Speed Reader",
-    icon: "speed-line",
-    mode: "speed",
-  },
-  {
     name: "Deleted Books",
     icon: "trash-line",
     mode: "trash",

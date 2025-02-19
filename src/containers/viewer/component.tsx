@@ -21,6 +21,9 @@ import {
 } from "../../assets/lib/kookit-extra-browser.min";
 import * as Kookit from "../../assets/lib/kookit.min";
 import SpeedReader from "../../components/speedReader/component";
+import WordOverlay from "../../components/wordOverlay/component";
+import MatrixSpeedReader from "../../components/matrixSpeedReader";
+import MatrixToggleButton from "../../components/matrixSpeedReader/toggleButton";
 declare var window: any;
 let lock = false; //prevent from clicking too fasts
 
@@ -60,7 +63,11 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
       rendition: null,
       htmlBook: null,
       readerMode: props.readerMode,
-      currentBook: null
+      currentBook: null,
+      isSpeedReaderActive: props.readerMode === "speed",
+      speedReaderWPM: parseInt(ConfigService.getReaderConfig("speedReaderWPM") || "300"),
+      isMatrixOverlayActive: false,
+      currentWords: []
     };
     this.lock = false;
     this.handleCurrentChapter = props.handleCurrentChapter;
@@ -324,13 +331,42 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
                       console.error('[Viewer] Chapter doc not found:', { index, totalDocs: chapterDocs?.length });
                       return '';
                     }
-                    const content = chapterDocs[index].textContent;
+
+                    // Check for XML parsing errors
+                    const doc = chapterDocs[index];
+                    if (doc.querySelector?.('parsererror')) {
+                      console.error('[Viewer] XML parsing error in chapter:', {
+                        index,
+                        error: doc.querySelector('parsererror')?.textContent
+                      });
+                      return '';
+                    }
+
+                    // Try to get content from different possible locations
+                    let content = '';
+                    if (doc.body?.textContent) {
+                      content = doc.body.textContent;
+                    } else if (doc.documentElement?.textContent) {
+                      content = doc.documentElement.textContent;
+                    } else if (doc.textContent) {
+                      content = doc.textContent;
+                    }
+
+                    // Basic cleaning of the content
+                    content = content
+                      .replace(/<(style|script|xml|parsererror)[^>]*>[\s\S]*?<\/\1>/gi, '') // Remove problematic elements
+                      .replace(/<[^>]+>/g, ' ') // Remove remaining tags
+                      .replace(/\s+/g, ' ') // Normalize whitespace
+                      .trim();
+
                     console.log('[Viewer] Retrieved chapter content:', {
                       index,
                       hasContent: !!content,
                       previewLength: content?.length,
-                      preview: content?.slice(0, 50)
+                      preview: content?.slice(0, 50),
+                      hasXMLErrors: content.includes('parsererror')
                     });
+
                     return content || '';
                   } catch (error) {
                     console.error('[Viewer] Error getting chapter content:', error);
@@ -562,6 +598,100 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
       "recordLocation"
     );
   };
+
+  // Add the getChapterWords method
+  getChapterWords = () => {
+    console.log('[Viewer] Starting getChapterWords:', {
+      hasHtmlBook: !!this.state.htmlBook,
+      hasRendition: !!this.state.htmlBook?.rendition,
+      chapterDocIndex: this.state.chapterDocIndex
+    });
+
+    if (!this.state.htmlBook?.rendition) {
+      console.error('[Viewer] No rendition available for word extraction');
+      return [];
+    }
+
+    try {
+      // Get the current chapter's content
+      const iframe = document.querySelector("#page-area iframe") as HTMLIFrameElement;
+      if (!iframe || !iframe.contentDocument) {
+        console.error('[Viewer] No iframe or content document found');
+        return [];
+      }
+
+      console.log('[Viewer] Found iframe document:', {
+        hasIframe: !!iframe,
+        hasContentDocument: !!iframe.contentDocument,
+        hasBody: !!iframe.contentDocument.body,
+        bodyContent: iframe.contentDocument.body.textContent?.slice(0, 100)
+      });
+
+      // Create a temporary div to parse the content
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = iframe.contentDocument.body.innerHTML;
+
+      // Get all text nodes
+      const textNodes: Node[] = [];
+      const walk = document.createTreeWalker(
+        tempDiv,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: (node: Node) => {
+            // Skip script and style contents
+            const parentElement = (node.parentNode as Element);
+            if (
+              parentElement?.tagName === 'SCRIPT' ||
+              parentElement?.tagName === 'STYLE' ||
+              parentElement?.tagName === 'NOSCRIPT'
+            ) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            // Accept non-empty text nodes
+            return node.textContent?.trim()
+              ? NodeFilter.FILTER_ACCEPT
+              : NodeFilter.FILTER_REJECT;
+          },
+        }
+      );
+
+      let node: Node | null;
+      while ((node = walk.nextNode())) {
+        textNodes.push(node);
+      }
+
+      console.log('[Viewer] Collected text nodes:', {
+        nodeCount: textNodes.length,
+        sampleNode: textNodes[0]?.textContent?.slice(0, 50)
+      });
+
+      // Extract and process words
+      const words = textNodes
+        .map((node) => node.textContent || '')
+        .join(' ')
+        // Split into words
+        .split(/\s+/)
+        // Clean up each word
+        .map((word) => word.trim())
+        // Remove punctuation from word edges
+        .map((word) => word.replace(/^[^\w\u4e00-\u9fff]+|[^\w\u4e00-\u9fff]+$/g, ''))
+        // Filter out empty strings and standalone punctuation
+        .filter((word) => word && /[\w\u4e00-\u9fff]/.test(word));
+
+      console.log('[Viewer] Processed words:', {
+        chapterIndex: this.state.chapterDocIndex,
+        wordCount: words.length,
+        sampleWords: words.slice(0, 5),
+        lastWords: words.slice(-5)
+      });
+
+      return words;
+    } catch (error) {
+      console.error('[Viewer] Error extracting words:', error);
+      return [];
+    }
+  };
+
   handleBindGesture = () => {
     let doc = getIframeDoc();
     if (!doc) return;
@@ -604,48 +734,54 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
       this.setState({ rect });
     });
   };
-  render() {
-    // If in speed reader mode, only render the speed reader view
-    if (this.props.readerMode === "speed") {
-      // Add type validation logging
-      console.log("[Viewer] SpeedReader render:", {
-        viewerProps: {
-          readerMode: this.props.readerMode,
-          hasHtmlBook: !!this.props.htmlBook,
-          hasTranslation: !!this.props.t,
-        },
-        speedReaderProps: {
-          htmlBook: !!this.props.htmlBook,
-          currentBook: !!this.props.currentBook,
-          handleCurrentChapter: !!this.props.handleCurrentChapter,
-          handleCurrentChapterIndex: !!this.props.handleCurrentChapterIndex,
-          t: !!this.props.t
-        }
+
+  // Add speed reader state management methods
+  handleSpeedReaderToggle = () => {
+    const currentMode = ConfigService.getReaderConfig("readerMode");
+    const newMode = currentMode === "speed" ? "double" : "speed";
+    
+    ConfigService.setReaderConfig("readerMode", newMode);
+    this.setState({ 
+      isSpeedReaderActive: newMode === "speed",
+      speedReaderWPM: this.state.speedReaderWPM || 300 // Default WPM
+    });
+    
+    this.props.handleRenderBookFunc(() => this.handleRenderBook());
+  };
+
+  handleSpeedReaderWPMChange = (wpm: number) => {
+    this.setState({ speedReaderWPM: wpm });
+    ConfigService.setReaderConfig("speedReaderWPM", wpm.toString());
+  };
+
+  toggleMatrixOverlay = () => {
+    if (!this.state.isMatrixOverlayActive) {
+      // Getting words before activating overlay
+      const words = this.getChapterWords();
+      console.log('[Viewer] Toggling matrix overlay ON:', {
+        wordCount: words.length,
+        sampleWords: words.slice(0, 5),
+        hasHtmlBook: !!this.state.htmlBook,
+        chapterDocIndex: this.state.chapterDocIndex,
+        chapterTitle: this.state.chapter
       });
 
-      return (
-        <div
-          className="html-viewer-page speed-reader-page"
-          style={{
-            position: "fixed",
-            top: 0,
-            left: this.props.isNavLocked ? "310px" : "10px",
-            right: "10px",
-            bottom: 0,
-          }}
-        >
-          <SpeedReader
-            htmlBook={this.props.htmlBook}
-            currentBook={this.props.currentBook}
-            handleCurrentChapter={this.props.handleCurrentChapter}
-            handleCurrentChapterIndex={this.props.handleCurrentChapterIndex}
-            t={this.props.t}
-          />
-        </div>
-      );
-    }
+      if (words.length === 0) {
+        toast.error(this.props.t("No words found in current chapter"));
+        return;
+      }
 
-    // Original render code for other modes
+      this.setState({
+        isMatrixOverlayActive: true,
+        currentWords: words
+      });
+    } else {
+      console.log('[Viewer] Toggling matrix overlay OFF');
+      this.setState({ isMatrixOverlayActive: false });
+    }
+  };
+
+  render() {
     return (
       <>
         {this.props.htmlBook ? (
@@ -682,6 +818,12 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
             }}
           />
         )}
+        {this.props.htmlBook && (
+          <WordOverlay
+            rendition={this.props.htmlBook.rendition}
+            readerMode={this.props.readerMode}
+          />
+        )}
         <div
           className={
             this.props.readerMode === "scroll"
@@ -709,6 +851,53 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
         "yes" ? null : this.props.currentBook.key ? (
           <Background />
         ) : null}
+
+        <MatrixToggleButton
+          isActive={this.state.isMatrixOverlayActive}
+          onToggle={this.toggleMatrixOverlay}
+          t={this.props.t}
+        />
+
+        {this.state.isMatrixOverlayActive && this.state.htmlBook && this.state.currentWords && (
+          <MatrixSpeedReader
+            words={this.state.currentWords}
+            initialWPM={this.state.speedReaderWPM || 300}
+            onClose={this.toggleMatrixOverlay}
+            bookName={this.props.currentBook.name}
+            chapterTitle={this.state.chapter}
+            onComplete={() => {
+              // Move to next chapter
+              if (this.state.htmlBook?.rendition) {
+                this.state.htmlBook.rendition.next().then(() => {
+                  // After moving to next chapter, get new words
+                  const newWords = this.getChapterWords();
+                  if (newWords.length > 0) {
+                    this.setState({ 
+                      currentWords: newWords,
+                      isMatrixOverlayActive: true 
+                    });
+                  } else {
+                    this.setState({ isMatrixOverlayActive: false });
+                    toast.error(this.props.t("No more chapters available"));
+                  }
+                });
+              }
+            }}
+            onProgressUpdate={(progress) => {
+              if (this.state.htmlBook) {
+                ConfigService.setObjectConfig(
+                  this.props.currentBook.key,
+                  {
+                    percentage: progress,
+                    chapterTitle: this.state.chapter,
+                    chapterDocIndex: this.state.chapterDocIndex,
+                  },
+                  "recordLocation"
+                );
+              }
+            }}
+          />
+        )}
       </>
     );
   }

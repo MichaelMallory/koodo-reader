@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.485.0",
+    "@gxl/epub-parser": "^2.0.4",
     "@types/pdfjs-dist": "^2.10.378",
     "@zip.js/zip.js": "^2.7.54",
     "adm-zip": "^0.5.2",

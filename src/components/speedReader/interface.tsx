@@ -4,10 +4,9 @@ import { WithTranslation } from "react-i18next";
 
 // Empty interface for now, will add more props as we implement features
 export interface SpeedReaderBaseProps {
-  htmlBook: HtmlBook | null;
+  htmlBook?: HtmlBook | null;
   currentBook: Book;
-  handleCurrentChapter: (currentChapter: string) => void;
-  handleCurrentChapterIndex: (currentChapterIndex: number) => void;
+  handleCurrentChapter: (title: string, index: number) => void;
 }
 
 export type SpeedReaderProps = SpeedReaderBaseProps & Partial<WithTranslation>;
