@@ -24,6 +24,7 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
   const [isPaused, setIsPaused] = useState(true); // Start paused
   const [isComplete, setIsComplete] = useState(false);
   const [wpm, setWpm] = useState(initialWPM);
+  const [isQuizMode, setIsQuizMode] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const matrixCharacters = '日ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍｦｲｸｺｿﾁﾄﾉﾌﾔﾖﾙﾚﾛﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -154,6 +155,48 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
     currentWord: currentWordIndex >= 0 ? words[currentWordIndex] : null
   });
 
+  const handleStartQuiz = () => {
+    setIsQuizMode(true);
+    // Future: This is where we'll trigger the LLM to generate questions
+  };
+
+  const renderCompletionMessage = () => {
+    if (isQuizMode) {
+      return (
+        <div className="quiz-interface">
+          <h2 className="quiz-title">Neural Comprehension Interface</h2>
+          <div className="quiz-content">
+            <p className="quiz-subtitle">Initializing knowledge verification protocol...</p>
+            {/* Future: This is where quiz questions will be rendered */}
+          </div>
+          <div className="quiz-controls">
+            <button onClick={() => setIsQuizMode(false)}>Return to Summary</button>
+            <button onClick={onClose}>Exit Reader</button>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="completion-message">
+        <h2 className="completion-title">Download Complete</h2>
+        <p className="completion-subtitle">
+          Chapter successfully processed
+        </p>
+        <div className="completion-controls">
+          <button 
+            className="neural-test-button"
+            onClick={handleStartQuiz}
+          >
+            <span className="icon-brain"></span>
+            Initialize Neural Sync Test
+          </button>
+          <button onClick={onClose}>Return to Reader</button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="matrix-speed-reader">
       <canvas ref={canvasRef} className="matrix-canvas" />
@@ -169,10 +212,10 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
             
             <div className="progress-text">
               {currentWordIndex === -1 ? (
-                "Ready to begin download"
+                "Ready to begin BrainLoading..."
               ) : (
                 <>
-                  Downloading {bookName} - {progress.toFixed(2)}%
+                  BrainLoading {bookName} - {progress.toFixed(2)}%
                   <div className="progress-stats">
                     Chapter: {chapterTitle}
                     <br />
@@ -184,7 +227,7 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
             
             <div className="word-display">
               {currentWordIndex === -1 ? 
-                "Press Start to begin download" : 
+                "Press Start to begin BrainLoad" : 
                 words[currentWordIndex] || ''
               }
             </div>
@@ -210,13 +253,7 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
             </div>
           </>
         ) : (
-          <div className="completion-message">
-            <h2 className="completion-title">Download Complete</h2>
-            <p className="completion-subtitle">
-              Chapter successfully processed
-            </p>
-            <button onClick={onClose}>Return to Reader</button>
-          </div>
+          renderCompletionMessage()
         )}
       </div>
     </div>
