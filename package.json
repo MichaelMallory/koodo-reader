@@ -20,6 +20,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.485.0",
     "@gxl/epub-parser": "^2.0.4",
+    "@types/chart.js": "^2.9.41",
     "@types/pdfjs-dist": "^2.10.378",
     "@zip.js/zip.js": "^2.7.54",
     "adm-zip": "^0.5.2",
@@ -28,6 +29,7 @@
     "better-sqlite3": "^11.6.0",
     "buffer": "^6.0.3",
     "chardet": "^2.0.0",
+    "chart.js": "^4.4.8",
     "chinese-s2t": "^1.0.0",
     "copy-text-to-clipboard": "^2.2.0",
     "dompurify": "^3.0.1",

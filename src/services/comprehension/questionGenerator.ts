@@ -45,7 +45,13 @@ export class QuestionGeneratorService {
     this.baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
   }
 
-  async generateQuestions(text: string, totalQuestions: number = 6, readingSpeed?: number): Promise<Quiz> {
+  async generateQuestions(
+    text: string, 
+    totalQuestions: number = 6, 
+    readingSpeed?: number,
+    bookKey?: string,
+    chapterIndex?: number
+  ): Promise<Quiz> {
     try {
       const response = await fetch(`${this.baseUrl}/api/quiz/generate`, {
         method: 'POST',
@@ -65,10 +71,12 @@ export class QuestionGeneratorService {
 
       const quiz = await response.json();
       
-      // Save the quiz record
+      // Save the quiz record with book info
       await this.saveQuizRecord({
         key: quiz.id,
         quiz,
+        bookKey,
+        chapterIndex,
         timestamp: Date.now()
       });
 

@@ -1,27 +1,34 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './matrixSpeedReader.css';
 import { QuestionGeneratorService, Question, ValidationResult, Quiz } from "../../services/comprehension/questionGenerator";
+import PerformanceAnalytics from '../performanceAnalytics';
 
 interface MatrixSpeedReaderProps {
-  words: string[];
-  initialWPM: number;
+  text: string;
   onClose: () => void;
-  onComplete: () => void;
-  onProgressUpdate: (progress: number) => void;
+  initialWPM?: number;
+  bookKey?: string;
+  chapterIndex?: number;
   bookName: string;
   chapterTitle: string;
+  onProgressUpdate?: (progress: number) => void;
+  onComplete?: () => void;
 }
 
 const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
-  words,
-  initialWPM,
+  text,
   onClose,
-  onComplete,
-  onProgressUpdate,
+  initialWPM = 300,
+  bookKey,
+  chapterIndex,
   bookName,
   chapterTitle,
+  onProgressUpdate = () => {},
+  onComplete = () => {}
 }) => {
-  const [currentWordIndex, setCurrentWordIndex] = useState(-1); // Start at -1 to indicate not started
+  // Split text into words
+  const words = text.split(/\s+/);
+  const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const [isPaused, setIsPaused] = useState(true); // Start paused
   const [isComplete, setIsComplete] = useState(false);
   const [wpm, setWpm] = useState(initialWPM);
@@ -43,6 +50,9 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
 
   // QuestionGenerator service ref
   const questionGeneratorRef = useRef<QuestionGeneratorService | null>(null);
+
+  // Performance analytics state
+  const [showPerformanceAnalytics, setShowPerformanceAnalytics] = useState(false);
 
   // Initialize question generator
   useEffect(() => {
@@ -171,7 +181,7 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
         });
 
         setCurrentWordIndex(newIndex);
-        onProgressUpdate(newProgress / 100); // Convert to decimal for progress update
+        onProgressUpdate(newProgress / 100);
       } else {
         console.log('[MatrixReader] Completing chapter:', {
           finalIndex: currentWordIndex,
@@ -232,12 +242,20 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
     console.log('[QuizDebug] State updated - loading:', true, 'quizMode:', true);
     
     try {
-      // Join all words into text for question generation
-      const text = words.join(' ');
-      console.log('[QuizDebug] Preparing text for quiz - length:', text.length, 'words:', words.length);
+      console.log('[QuizDebug] Preparing text for quiz:', {
+        textLength: words.join(' ').length,
+        bookKey,
+        chapterIndex
+      });
       
       console.log('[QuizDebug] Calling generateQuestions');
-      const quiz = await questionGeneratorRef.current.generateQuestions(text, 6, wpm);
+      const quiz = await questionGeneratorRef.current.generateQuestions(
+        words.join(' '), 
+        6, 
+        wpm,
+        bookKey,
+        chapterIndex
+      );
       console.log('[QuizDebug] Quiz generated:', quiz);
       
       setQuestions(quiz.questions);
@@ -466,6 +484,15 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
   };
 
   const renderCompletionMessage = () => {
+    if (showPerformanceAnalytics) {
+      return (
+        <PerformanceAnalytics
+          onClose={() => setShowPerformanceAnalytics(false)}
+          questionGenerator={questionGeneratorRef.current!}
+        />
+      );
+    }
+
     if (isQuizMode) {
       return (
         <div className="quiz-interface">
@@ -488,6 +515,13 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
           >
             <span className="icon-brain"></span>
             Initialize Neural Sync Test
+          </button>
+          <button 
+            className="performance-button"
+            onClick={() => setShowPerformanceAnalytics(true)}
+          >
+            <span className="icon-chart"></span>
+            View Neural Performance Matrix
           </button>
           <button onClick={onClose}>Return to Reader</button>
         </div>

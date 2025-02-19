@@ -860,7 +860,7 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
 
         {this.state.isMatrixOverlayActive && this.state.htmlBook && this.state.currentWords && (
           <MatrixSpeedReader
-            words={this.state.currentWords}
+            text={this.state.currentWords.join(' ')}
             initialWPM={this.state.speedReaderWPM || 300}
             onClose={this.toggleMatrixOverlay}
             bookName={this.props.currentBook.name}
