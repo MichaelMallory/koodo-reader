@@ -11,6 +11,12 @@ interface PerformanceData {
   timestamps: number[];
 }
 
+interface WeightedPerformance {
+  speed: number;
+  score: number;
+  weight: number;
+}
+
 interface PerformanceAnalyticsProps {
   onClose: () => void;
   questionGenerator: QuestionGeneratorService;
@@ -133,17 +139,57 @@ const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
   const calculateOptimalSpeed = () => {
     if (performanceData.readingSpeeds.length === 0) return 'Insufficient data';
 
-    let bestSpeed = 0;
-    let bestScore = 0;
-
-    performanceData.comprehensionScores.forEach((score, i) => {
-      if (score > bestScore) {
-        bestScore = score;
-        bestSpeed = performanceData.readingSpeeds[i];
-      }
+    // Convert to weighted performances
+    const weightedPerformances: WeightedPerformance[] = performanceData.readingSpeeds.map((speed, i) => {
+      const score = performanceData.comprehensionScores[i];
+      const timestamp = performanceData.timestamps[i];
+      
+      // Calculate recency weight (more recent tests have higher weight)
+      const ageInDays = (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
+      const recencyWeight = Math.exp(-ageInDays / 30); // Exponential decay over 30 days
+      
+      // Calculate consistency weight (tests with similar speeds get higher weight)
+      const similarSpeedTests = performanceData.readingSpeeds.filter(s => 
+        Math.abs(s - speed) < speed * 0.1 // Within 10% of this speed
+      ).length;
+      const consistencyWeight = similarSpeedTests / performanceData.readingSpeeds.length;
+      
+      // Calculate score weight (higher scores have higher weight)
+      const scoreWeight = Math.pow(score / 100, 2); // Square to emphasize high scores
+      
+      // Combine weights
+      const weight = (recencyWeight + consistencyWeight + scoreWeight) / 3;
+      
+      return { speed, score, weight };
     });
 
-    return `${bestSpeed} WPM (${bestScore.toFixed(1)}% comprehension)`;
+    // Calculate weighted average speed for tests with good comprehension
+    const goodPerformances = weightedPerformances.filter(p => p.score >= 70); // Only consider tests with 70%+ comprehension
+    
+    if (goodPerformances.length === 0) {
+      // If no good performances, suggest a conservative speed
+      const avgSpeed = performanceData.readingSpeeds.reduce((a, b) => a + b, 0) / performanceData.readingSpeeds.length;
+      return `${Math.round(avgSpeed * 0.8)} WPM (Suggested starting speed)`;
+    }
+
+    const weightedSum = goodPerformances.reduce((sum, p) => sum + p.speed * p.weight, 0);
+    const totalWeight = goodPerformances.reduce((sum, p) => sum + p.weight, 0);
+    const optimalSpeed = Math.round(weightedSum / totalWeight);
+
+    // Find the best comprehension score near this speed
+    const nearOptimalTests = performanceData.readingSpeeds
+      .map((speed, i) => ({ 
+        speed, 
+        score: performanceData.comprehensionScores[i] 
+      }))
+      .filter(test => Math.abs(test.speed - optimalSpeed) < optimalSpeed * 0.1);
+    
+    // Add validation to handle empty array case and ensure score is within bounds
+    const bestNearOptimalScore = nearOptimalTests.length > 0 
+      ? Math.min(100, Math.max(0, Math.max(...nearOptimalTests.map(t => t.score))))
+      : goodPerformances[0].score; // Fallback to the first good performance score if no tests in optimal range
+
+    return `${optimalSpeed} WPM (${bestNearOptimalScore.toFixed(1)}% comprehension)`;
   };
 
   const calculateAverageStats = () => {

@@ -1,5 +1,5 @@
 import React from "react";
-import { ViewerProps, ViewerState } from "./interface";
+import { ViewerProps, ViewerState as IViewerState, WordWithPause } from "./interface";
 import { withRouter } from "react-router-dom";
 import BookUtil from "../../utils/file/bookUtil";
 import PopupMenu from "../../components/popups/popupMenu";
@@ -27,7 +27,7 @@ import MatrixToggleButton from "../../components/matrixSpeedReader/toggleButton"
 declare var window: any;
 let lock = false; //prevent from clicking too fasts
 
-class Viewer extends React.Component<ViewerProps, ViewerState> {
+class Viewer extends React.Component<ViewerProps, IViewerState> {
   lock: boolean;
   handleCurrentChapter: (currentChapter: string) => void;
   handleCurrentChapterIndex: (currentChapterIndex: number) => void;
@@ -41,12 +41,11 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
       key: "",
       isFirst: true,
       scale: ConfigService.getReaderConfig("scale") || 1,
-      chapterTitle:
-        ConfigService.getObjectConfig(
-          this.props.currentBook.key,
-          "recordLocation",
-          {}
-        ).chapterTitle || "",
+      chapterTitle: ConfigService.getObjectConfig(
+        this.props.currentBook.key,
+        "recordLocation",
+        {}
+      ).chapterTitle || "",
       isDisablePopup: ConfigService.getReaderConfig("isDisablePopup") === "yes",
       isTouch: ConfigService.getReaderConfig("isTouch") === "yes",
       margin: parseInt(ConfigService.getReaderConfig("margin")) || 0,
@@ -599,8 +598,8 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
     );
   };
 
-  // Add the getChapterWords method
-  getChapterWords = () => {
+  // Update the getChapterWords method return type
+  getChapterWords = (): WordWithPause[] => {
     console.log('[Viewer] Starting getChapterWords:', {
       hasHtmlBook: !!this.state.htmlBook,
       hasRendition: !!this.state.htmlBook?.rendition,
@@ -638,7 +637,6 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
         NodeFilter.SHOW_TEXT,
         {
           acceptNode: (node: Node) => {
-            // Skip script and style contents
             const parentElement = (node.parentNode as Element);
             if (
               parentElement?.tagName === 'SCRIPT' ||
@@ -647,7 +645,6 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
             ) {
               return NodeFilter.FILTER_REJECT;
             }
-            // Accept non-empty text nodes
             return node.textContent?.trim()
               ? NodeFilter.FILTER_ACCEPT
               : NodeFilter.FILTER_REJECT;
@@ -660,32 +657,59 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
         textNodes.push(node);
       }
 
-      console.log('[Viewer] Collected text nodes:', {
-        nodeCount: textNodes.length,
-        sampleNode: textNodes[0]?.textContent?.slice(0, 50)
-      });
-
-      // Extract and process words
-      const words = textNodes
+      // Process text into words with punctuation
+      const processedWords = textNodes
         .map((node) => node.textContent || '')
         .join(' ')
-        // Split into words
-        .split(/\s+/)
-        // Clean up each word
-        .map((word) => word.trim())
-        // Remove punctuation from word edges
-        .map((word) => word.replace(/^[^\w\u4e00-\u9fff]+|[^\w\u4e00-\u9fff]+$/g, ''))
-        // Filter out empty strings and standalone punctuation
-        .filter((word) => word && /[\w\u4e00-\u9fff]/.test(word));
+        // Split into words but preserve punctuation
+        .match(/[\w\u4e00-\u9fff]+[.,!?;:)}\]]*|[({[\]]/g)
+        ?.map((wordWithPunct): WordWithPause => {
+          // Extract punctuation and determine pause factor
+          const punctMatch = wordWithPunct.match(/([\w\u4e00-\u9fff]+)([.,!?;:)}\]]*)$/);
+          if (!punctMatch) {
+            // Handle opening brackets/parentheses
+            if (/[({[]/.test(wordWithPunct)) {
+              return {
+                word: wordWithPunct,
+                pauseFactor: 1.0,
+                punctuation: ''
+              };
+            }
+            return {
+              word: wordWithPunct,
+              pauseFactor: 1.0,
+              punctuation: ''
+            };
+          }
 
-      console.log('[Viewer] Processed words:', {
-        chapterIndex: this.state.chapterDocIndex,
-        wordCount: words.length,
-        sampleWords: words.slice(0, 5),
-        lastWords: words.slice(-5)
+          const [, word, punct] = punctMatch;
+          let pauseFactor = 1.0;
+
+          // Determine pause factor based on punctuation
+          if (punct.includes('.') || punct.includes('!') || punct.includes('?')) {
+            pauseFactor = 1.5; // End of sentence
+          } else if (punct.includes(',')) {
+            pauseFactor = 1.2; // Comma pause
+          } else if (punct.includes(';') || punct.includes(':')) {
+            pauseFactor = 1.3; // Mid-sentence break
+          }
+
+          return {
+            word: word + punct, // Keep punctuation with word
+            pauseFactor,
+            punctuation: punct
+          };
+        }) || [];
+
+      console.log('[Viewer] Processed words with punctuation:', {
+        wordCount: processedWords.length,
+        sampleWords: processedWords.slice(0, 5).map(w => ({
+          word: w.word,
+          pause: w.pauseFactor
+        }))
       });
 
-      return words;
+      return processedWords;
     } catch (error) {
       console.error('[Viewer] Error extracting words:', error);
       return [];
@@ -860,7 +884,7 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
 
         {this.state.isMatrixOverlayActive && this.state.htmlBook && this.state.currentWords && (
           <MatrixSpeedReader
-            text={this.state.currentWords.join(' ')}
+            text={this.state.currentWords}
             initialWPM={this.state.speedReaderWPM || 300}
             onClose={this.toggleMatrixOverlay}
             bookName={this.props.currentBook.name}
@@ -870,7 +894,7 @@ class Viewer extends React.Component<ViewerProps, ViewerState> {
               if (this.state.htmlBook?.rendition) {
                 this.state.htmlBook.rendition.next().then(() => {
                   // After moving to next chapter, get new words
-                  const newWords = this.getChapterWords();
+                  const newWords: WordWithPause[] = this.getChapterWords();
                   if (newWords.length > 0) {
                     this.setState({ 
                       currentWords: newWords,

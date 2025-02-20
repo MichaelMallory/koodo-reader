@@ -34,4 +34,5 @@ export interface SpeedReaderState {
     charset: string;
   };
   rawChapterText: string;
+  isCalibrationActive: boolean;
 } 

@@ -7,6 +7,13 @@ import SpeedControls from "./atoms/controls/SpeedControls";
 import ProgressBar from "./atoms/progressBar/ProgressBar";
 import { EnhancedTextExtractor } from "../../utils/reader/enhancedTextExtractor";
 import localforage from "localforage";
+import MatrixSpeedReader from "../matrixSpeedReader";
+
+interface WordWithPause {
+  word: string;
+  pauseFactor: number;
+  punctuation: string;
+}
 
 class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
   private wordTimer: NodeJS.Timeout | null = null;
@@ -40,7 +47,8 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
       flattenChapters: [],
       rendition: null,
       totalWords: 0,
-      rawChapterText: ""
+      rawChapterText: "",
+      isCalibrationActive: false
     };
   }
 
@@ -323,6 +331,18 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
     return (currentProgress / this.state.totalWords) * 100;
   }
 
+  transformWordsToWordWithPause = (words: string[]): WordWithPause[] => {
+    return words.map(word => {
+      const punctuation = word.match(/[.!?,;:"]$/)?.[0] || '';
+      return {
+        word: word.replace(/[.!?,;:"]$/, ''), // Remove punctuation from word
+        pauseFactor: punctuation.match(/[.!?]/) ? 1.5 : 
+                    punctuation.match(/[,;:]/) ? 1.2 : 1,
+        punctuation
+      };
+    });
+  };
+
   render(): JSX.Element {
     const { 
       currentWord,
@@ -333,7 +353,8 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
       progress,
       currentChapter,
       currentIndex,
-      totalWords
+      totalWords,
+      words
     } = this.state;
     
     if (isLoading) {
@@ -349,31 +370,62 @@ class SpeedReader extends React.Component<SpeedReaderProps, SpeedReaderState> {
         <MatrixBackground />
         
         <div className="speed-reader-content">
-          <div className="chapter-info">{currentChapter}</div>
+          <h2 className="section-title">Press Start to begin Section 1</h2>
           
-          <WordDisplay
-            word={isCompleted ? "Completed" : currentWord}
-            isVisible={true}
-            isCompleted={isCompleted}
-            isPlaying={isPlaying}
-            onNext={this.handleNextWord}
-            onPrevious={this.handlePreviousWord}
-          />
-          
-          <SpeedControls
-            wpm={wpm}
-            isPlaying={isPlaying}
-            onPlayPause={this.handlePlayPause}
-            onWpmChange={this.handleWpmChange}
-            onReset={this.handleReset}
-          />
-          
-            <ProgressBar
-              progress={progress}
-              totalWords={totalWords}
-              currentWord={currentIndex + 1}
+          <div className="speed-reader-controls">
+            <SpeedControls
+              wpm={wpm}
+              isPlaying={isPlaying}
+              onWpmChange={this.handleWpmChange}
+              onPlayPause={this.handlePlayPause}
+              onReset={this.handleReset}
             />
+            
+            <div className="control-buttons">
+              <button 
+                className="calibrate-button"
+                onClick={() => this.setState({ isCalibrationActive: true })}
+              >
+                <span className="icon">⚡</span>
+                Calibrate
+              </button>
+            </div>
+          </div>
+
+          {isPlaying && (
+            <>
+              <WordDisplay
+                word={isCompleted ? "Completed" : currentWord}
+                isVisible={true}
+                isCompleted={isCompleted}
+                isPlaying={isPlaying}
+                onNext={this.handleNextWord}
+                onPrevious={this.handlePreviousWord}
+              />
+              
+              <ProgressBar
+                progress={progress}
+                totalWords={totalWords}
+                currentWord={currentIndex + 1}
+              />
+            </>
+          )}
         </div>
+
+        {this.state.isCalibrationActive && (
+          <MatrixSpeedReader
+            text={this.transformWordsToWordWithPause(words)}
+            onClose={() => this.setState({ isCalibrationActive: false })}
+            initialWPM={wpm}
+            bookKey={this.props.currentBook.key}
+            chapterIndex={this.state.currentChapterIndex}
+            bookName={this.props.currentBook.name}
+            chapterTitle={currentChapter}
+            onComplete={() => {
+              this.setState({ isCalibrationActive: false });
+            }}
+          />
+        )}
       </div>
     );
   }

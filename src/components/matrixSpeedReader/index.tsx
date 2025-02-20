@@ -4,7 +4,7 @@ import { QuestionGeneratorService, Question, ValidationResult, Quiz } from "../.
 import PerformanceAnalytics from '../performanceAnalytics';
 
 interface MatrixSpeedReaderProps {
-  text: string;
+  text: WordWithPause[];  // Only accept WordWithPause[] now
   onClose: () => void;
   initialWPM?: number;
   bookKey?: string;
@@ -14,6 +14,39 @@ interface MatrixSpeedReaderProps {
   onProgressUpdate?: (progress: number) => void;
   onComplete?: () => void;
 }
+
+interface WordWithPause {
+  word: string;
+  pauseFactor: number;
+  punctuation: string;
+}
+
+interface Section {
+  words: WordWithPause[];
+  startIndex: number;
+  endIndex: number;
+  isComplete: boolean;
+  testCompleted: boolean;
+  testScore?: number;
+}
+
+interface QuestionType {
+  type: 'theme' | 'character' | 'plot' | 'mood' | 'detail' | 'inference';
+  weight: number;
+}
+
+const QUESTION_DISTRIBUTION: QuestionType[] = [
+  { type: 'theme', weight: 3 },     // Theme and main ideas (increased weight)
+  { type: 'plot', weight: 3 },      // Plot progression and events (increased weight)
+  { type: 'inference', weight: 3 }, // Reading between the lines (increased weight)
+  { type: 'character', weight: 2 }, // Character development/motivation (increased weight)
+  { type: 'mood', weight: 1 },      // Tone, atmosphere, mood
+  { type: 'detail', weight: 0.5 }   // Key supporting details (reduced weight)
+];
+
+const MIN_SECTION_SIZE = 500; // Minimum words per section
+const MAX_SECTION_SIZE = 1500; // Maximum words per section
+const TARGET_SECTION_SIZE = 1000; // Ideal words per section
 
 const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
   text,
@@ -26,10 +59,59 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
   onProgressUpdate = () => {},
   onComplete = () => {}
 }) => {
-  // Split text into words
-  const words = text.split(/\s+/);
+  // No need to convert text since it's already WordWithPause[]
+  const allWords = text;
+
+  // Split words into sections
+  const [sections, setSections] = useState<Section[]>(() => {
+    const totalWords = allWords.length;
+
+    // Calculate optimal number of sections
+    let sectionCount = Math.ceil(totalWords / TARGET_SECTION_SIZE);
+    
+    // Adjust section count if sections would be too small
+    if (totalWords / sectionCount < MIN_SECTION_SIZE) {
+      sectionCount = Math.max(1, Math.floor(totalWords / MIN_SECTION_SIZE));
+    }
+    
+    // Adjust section count if sections would be too large
+    if (totalWords / sectionCount > MAX_SECTION_SIZE) {
+      sectionCount = Math.ceil(totalWords / MAX_SECTION_SIZE);
+    }
+
+    // Calculate base size and remainder for even distribution
+    const baseSize = Math.floor(totalWords / sectionCount);
+    const remainder = totalWords % sectionCount;
+
+    return Array.from({ length: sectionCount }, (_, index) => {
+      // Add one extra word to early sections to distribute remainder
+      const extraWord = index < remainder ? 1 : 0;
+      const sectionSize = baseSize + extraWord;
+      const startIndex = index * baseSize + Math.min(index, remainder);
+      const endIndex = startIndex + sectionSize;
+
+      console.log('[MatrixReader] Creating section:', {
+        index,
+        startIndex,
+        endIndex,
+        sectionSize,
+        totalWords,
+        sectionCount
+      });
+
+      return {
+        words: allWords.slice(startIndex, endIndex),
+        startIndex,
+        endIndex,
+        isComplete: false,
+        testCompleted: false
+      };
+    });
+  });
+
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
-  const [isPaused, setIsPaused] = useState(true); // Start paused
+  const [isPaused, setIsPaused] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
   const [wpm, setWpm] = useState(initialWPM);
   const [isQuizMode, setIsQuizMode] = useState(false);
@@ -157,47 +239,34 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
     };
   }, []);
 
+  // Get current section's words
+  const currentSection = sections[currentSectionIndex];
+  const words = currentSection?.words || [];
+
   useEffect(() => {
     if (isPaused || currentWordIndex >= words.length || currentWordIndex === -1) return;
 
-    console.log('[MatrixReader] Progress check:', {
-      currentWordIndex,
-      totalWords: words.length,
-      progress: ((currentWordIndex + 1) / words.length) * 100,
-      isPaused,
-      isComplete
-    });
-
+    const baseInterval = 60000 / wpm;
     const intervalId = setInterval(() => {
       if (currentWordIndex < words.length - 1) {
         const newIndex = currentWordIndex + 1;
-        const newProgress = (newIndex / words.length) * 100;
+        const newProgress = ((currentSection.startIndex + newIndex + 1) / allWords.length) * 100;
         
-        console.log('[MatrixReader] Updating progress:', {
-          newIndex,
-          totalWords: words.length,
-          newProgress,
-          currentWord: words[newIndex]
-        });
-
         setCurrentWordIndex(newIndex);
         onProgressUpdate(newProgress / 100);
       } else {
-        console.log('[MatrixReader] Completing chapter:', {
-          finalIndex: currentWordIndex,
-          totalWords: words.length,
-          progress: 100
-        });
-        
+        // Section complete
+        setSections(prev => prev.map((section, idx) => 
+          idx === currentSectionIndex ? { ...section, isComplete: true } : section
+        ));
         setIsComplete(true);
         setIsPaused(true);
-        onComplete();
         clearInterval(intervalId);
       }
-    }, 60000 / wpm);
+    }, baseInterval * (words[currentWordIndex]?.pauseFactor || 1.0));
 
     return () => clearInterval(intervalId);
-  }, [currentWordIndex, isPaused, words, wpm, onComplete, onProgressUpdate]);
+  }, [currentWordIndex, isPaused, words, wpm, currentSection]);
 
   const handleWpmChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newWpm = parseInt(event.target.value);
@@ -227,44 +296,69 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
     totalWords: words.length,
     isPaused,
     isComplete,
-    currentWord: currentWordIndex >= 0 ? words[currentWordIndex] : null
+    currentWord: currentWordIndex >= 0 ? words[currentWordIndex]?.word : null
   });
 
   const handleStartQuiz = async () => {
-    console.log('[QuizDebug] handleStartQuiz called');
-    if (!questionGeneratorRef.current) {
-      console.error('[QuizDebug] Question generator not initialized');
-      return;
-    }
+    if (!questionGeneratorRef.current) return;
 
     setIsLoading(true);
     setIsQuizMode(true);
-    console.log('[QuizDebug] State updated - loading:', true, 'quizMode:', true);
     
     try {
-      console.log('[QuizDebug] Preparing text for quiz:', {
-        textLength: words.join(' ').length,
-        bookKey,
-        chapterIndex
-      });
-      
-      console.log('[QuizDebug] Calling generateQuestions');
+      // Generate quiz for current section only
+      const sectionText = words.map(w => w.word).join(' ');
       const quiz = await questionGeneratorRef.current.generateQuestions(
-        words.join(' '), 
-        6, 
+        sectionText,
+        6,
         wpm,
         bookKey,
-        chapterIndex
+        chapterIndex,
+        {
+          questionTypes: QUESTION_DISTRIBUTION,
+          context: {
+            bookName,
+            chapterTitle,
+            sectionIndex: currentSectionIndex,
+            totalSections: sections.length,
+            isFirstSection: currentSectionIndex === 0,
+            isLastSection: currentSectionIndex === sections.length - 1
+          }
+        }
       );
-      console.log('[QuizDebug] Quiz generated:', quiz);
       
       setQuestions(quiz.questions);
       setCurrentQuiz(quiz);
       setIsLoading(false);
-      console.log('[QuizDebug] Quiz state updated');
     } catch (error) {
       console.error('[QuizDebug] Error generating questions:', error);
       setIsLoading(false);
+    }
+  };
+
+  const handleQuizComplete = (score: number) => {
+    // Mark current section's test as completed
+    setSections(prev => prev.map((section, idx) => 
+      idx === currentSectionIndex ? { ...section, testCompleted: true, testScore: score } : section
+    ));
+
+    // Check if there are more sections
+    if (currentSectionIndex < sections.length - 1) {
+      setCurrentSectionIndex(prev => prev + 1);
+      setCurrentWordIndex(-1);
+      setIsComplete(false);
+      setIsQuizMode(false);
+      setQuizResults(null);
+      setSelectedAnswers([]);
+      setCurrentQuestionIndex(0); // Reset question index for next section
+    } else {
+      // All sections complete
+      setIsQuizMode(false);
+      setQuizResults(null);
+      setCurrentQuestionIndex(0);
+      setSelectedAnswers([]);
+      setShowPerformanceAnalytics(true); // Show the performance analytics dashboard
+      onComplete();
     }
   };
 
@@ -283,52 +377,19 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
   };
 
   const handleSubmitQuiz = async () => {
-    console.log('[QuizDebug] Attempting to submit quiz:', {
-      hasQuestionGenerator: !!questionGeneratorRef.current,
-      hasCurrentQuiz: !!currentQuiz,
-      selectedAnswers,
-      totalQuestions: currentQuiz?.questions?.length,
-      questions: currentQuiz?.questions
-    });
-
-    if (!questionGeneratorRef.current || !currentQuiz) {
-      console.error('[QuizDebug] Cannot submit quiz - missing required data');
-      return;
-    }
-
-    if (selectedAnswers.length !== currentQuiz.questions.length) {
-      console.warn('[QuizDebug] Not all questions answered:', {
-        answered: selectedAnswers.length,
-        total: currentQuiz.questions.length,
-        selectedAnswers
-      });
-      return;
-    }
+    if (!questionGeneratorRef.current || !currentQuiz) return;
 
     setIsLoading(true);
-
     try {
-      console.log('[QuizDebug] Validating answers with data:', {
-        quiz: currentQuiz,
-        userAnswers: selectedAnswers
-      });
-      
       const results = await questionGeneratorRef.current.validateAnswers(currentQuiz, selectedAnswers);
-      console.log('[QuizDebug] Validation results:', results);
-      
-      if (!results || typeof results.score !== 'number') {
-        throw new Error('Invalid validation results received');
-      }
-      
       setQuizResults(results);
+      if (results) {
+        // Don't immediately call handleQuizComplete - let user see results first
+        // handleQuizComplete(results.score);
+        // Instead, show results and let user proceed via quiz results UI
+      }
     } catch (error) {
       console.error('[QuizDebug] Error validating answers:', error);
-      setQuizResults({
-        score: 0,
-        totalQuestions: currentQuiz.questions.length,
-        correctAnswers: 0,
-        feedback: ['An error occurred while validating your answers. Please try again.'],
-      });
     } finally {
       setIsLoading(false);
     }
@@ -363,6 +424,7 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
         
         <div className="score-details">
           <p>Correct Answers: {quizResults.correctAnswers} of {quizResults.totalQuestions}</p>
+          <p>Section {currentSectionIndex + 1} of {sections.length}</p>
         </div>
 
         <div className="feedback-list">
@@ -377,16 +439,29 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
         </div>
 
         <div className="quiz-controls">
-          <button onClick={resetQuiz} className="matrix-button">
-            Return to Summary
-          </button>
-          <button onClick={() => {
-            setQuizResults(null);
-            setCurrentQuestionIndex(0);
-            setSelectedAnswers([]);
-          }} className="matrix-button">
-            Try Again
-          </button>
+          {currentSectionIndex < sections.length - 1 ? (
+            <button 
+              onClick={() => handleQuizComplete(quizResults.score)} 
+              className="matrix-button"
+            >
+              Continue to Next Section
+            </button>
+          ) : (
+            <div className="final-section-controls">
+              <button 
+                onClick={() => handleQuizComplete(quizResults.score)} 
+                className="matrix-button"
+              >
+                View Performance Dashboard
+              </button>
+              <button 
+                onClick={onClose} 
+                className="matrix-button secondary"
+              >
+                Return to Reader
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -483,6 +558,62 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
     );
   };
 
+  const handleProgressBarClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const progressBar = event.currentTarget;
+    const rect = progressBar.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const percentage = (x / rect.width) * 100;
+    const newWordIndex = Math.floor((words.length * percentage) / 100);
+    setCurrentWordIndex(Math.min(newWordIndex, words.length - 1));
+  };
+
+  const handleProgressBarDrag = (event: React.MouseEvent<HTMLDivElement>) => {
+    const progressBar = event.currentTarget;
+    const rect = progressBar.getBoundingClientRect();
+    
+    const updateProgress = (clientX: number) => {
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const percentage = (x / rect.width) * 100;
+      const newWordIndex = Math.floor((words.length * percentage) / 100);
+      setCurrentWordIndex(Math.min(newWordIndex, words.length - 1));
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      updateProgress(e.clientX);
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const renderProgress = () => {
+    const overallProgress = (currentSection.startIndex + currentWordIndex + 1) / allWords.length * 100;
+    const sectionProgress = (currentWordIndex + 1) / words.length * 100;
+    
+    return (
+      <div className="progress-container">
+        <div className="progress-text">
+          BrainLoading {bookName} - {overallProgress.toFixed(2)}%
+        </div>
+        <div 
+          className="progress-bar"
+          onClick={handleProgressBarClick}
+          onMouseDown={handleProgressBarDrag}
+        >
+          <div 
+            className="progress-line-fill" 
+            style={{ width: `${sectionProgress}%` }} 
+          />
+        </div>
+      </div>
+    );
+  };
+
   const renderCompletionMessage = () => {
     if (showPerformanceAnalytics) {
       return (
@@ -504,9 +635,9 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
     
     return (
       <div className="completion-message">
-        <h2 className="completion-title">Download Complete</h2>
+        <h2 className="completion-title">Section Complete</h2>
         <p className="completion-subtitle">
-          Chapter successfully processed
+          Ready for comprehension test
         </p>
         <div className="completion-controls">
           <button 
@@ -535,32 +666,12 @@ const MatrixSpeedReader: React.FC<MatrixSpeedReaderProps> = ({
       <div className="matrix-overlay">
         {!isComplete ? (
           <>
-            <div className="progress-bar">
-              <div 
-                className="progress-line-fill"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            
-            <div className="progress-text">
-              {currentWordIndex === -1 ? (
-                "Ready to begin BrainLoading..."
-              ) : (
-                <>
-                  BrainLoading {bookName} - {progress.toFixed(2)}%
-                  <div className="progress-stats">
-                    Chapter: {chapterTitle}
-                    <br />
-                    Word {currentWordIndex + 1} of {words.length}
-                  </div>
-                </>
-              )}
-            </div>
+            {renderProgress()}
             
             <div className="word-display">
               {currentWordIndex === -1 ? 
-                "Press Start to begin BrainLoad" : 
-                words[currentWordIndex] || ''
+                `Press Start to begin Section ${currentSectionIndex + 1}` : 
+                words[currentWordIndex]?.word || ''
               }
             </div>
 

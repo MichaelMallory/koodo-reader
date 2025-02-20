@@ -1,6 +1,12 @@
 import Book from "../../models/Book";
 import HtmlBook from "../../models/HtmlBook";
 
+export interface WordWithPause {
+  word: string;
+  pauseFactor: number;
+  punctuation: string;
+}
+
 export interface ViewerProps {
   currentBook: Book;
   htmlBook: HtmlBook | null;
@@ -48,8 +54,8 @@ export interface ViewerState {
   htmlBook: HtmlBook | null;
   readerMode: string;
   currentBook: Book | null;
-  isSpeedReaderActive?: boolean;
-  speedReaderWPM?: number;
+  isSpeedReaderActive: boolean;
+  speedReaderWPM: number;
   isMatrixOverlayActive: boolean;
-  currentWords: string[];
+  currentWords: WordWithPause[];
 }
